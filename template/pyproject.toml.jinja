@@ -23,6 +23,9 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest~=8.4", "ruff~=0.17", "sqlfluff~=4.5", "pre-commit~=4.0"]
+{% if orchestrator == 'airflow' %}
+airflow = ["apache-airflow==3.4.0", "astronomer-cosmos~=1.16"]
+{% endif %}
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -4,14 +4,24 @@ COMPOSE ?= $(shell docker compose version >/dev/null 2>&1 && echo "docker compos
 PYTHON ?= .venv/bin/python
 DBT ?= $(PYTHON) -m dbt.cli.main
 DBT_FLAGS ?= --project-dir dbt --profiles-dir dbt
-{% if warehouse == 'postgres' %}
+{% if warehouse == 'postgres' or orchestrator == 'airflow' %}
 -include .env
+{% endif %}
+{% if warehouse == 'postgres' %}
 WAREHOUSE_HOST ?= localhost
 WAREHOUSE_PORT ?= 5436
 WAREHOUSE_DB ?= warehouse
 WAREHOUSE_USER ?= warehouse
 WAREHOUSE_PASSWORD ?= warehouse
 export WAREHOUSE_HOST WAREHOUSE_PORT WAREHOUSE_DB WAREHOUSE_USER WAREHOUSE_PASSWORD
+{% endif %}
+{% if orchestrator == 'airflow' %}
+AIRFLOW_PORT ?= 8080
+AIRFLOW_USERNAME ?= $(_AIRFLOW_WWW_USER_USERNAME)
+AIRFLOW_PASSWORD ?= $(_AIRFLOW_WWW_USER_PASSWORD)
+AIRFLOW_USERNAME := $(or $(AIRFLOW_USERNAME),airflow)
+AIRFLOW_PASSWORD := $(or $(AIRFLOW_PASSWORD),airflow)
+export AIRFLOW_PORT AIRFLOW_USERNAME AIRFLOW_PASSWORD
 {% endif %}
 
 .PHONY: install extract load run backfill build test lint ci up down clean
@@ -51,7 +61,13 @@ ci: lint test
 
 {% if orchestrator == 'airflow' %}
 up:
-	@echo "Airflow local stack is wired in step 9; use 'make run build' for now."
+	$(COMPOSE) build
+	$(COMPOSE) up -d
+	@echo "Waiting for the Airflow apiserver to become healthy..."
+	@until $(COMPOSE) exec -T airflow-apiserver curl --fail --silent http://localhost:8080/api/v2/monitor/health >/dev/null 2>&1; do sleep 2; done
+	$(COMPOSE) exec -T airflow-scheduler airflow dags unpause weather_pipeline
+	$(COMPOSE) exec -T airflow-scheduler airflow dags trigger weather_pipeline
+	@echo "Airflow UI: http://localhost:$(AIRFLOW_PORT) (login: $(AIRFLOW_USERNAME) / $(AIRFLOW_PASSWORD))"
 {% elif warehouse == 'postgres' %}
 up:
 	$(COMPOSE) up -d

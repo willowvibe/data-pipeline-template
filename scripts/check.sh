@@ -39,6 +39,15 @@ bash "$template_root/scripts/render.sh" "$warehouse" "$orchestrator" "$project"
 
 cd "$project"
 
+export PIPELINE_HOME="$project"
+if [ "$orchestrator" = "airflow" ]; then
+  export AIRFLOW_HOME="$workdir/airflow-home"
+  export AIRFLOW__CORE__DAGS_FOLDER="$project/airflow/dags"
+  export AIRFLOW__CORE__LOAD_EXAMPLES=false
+  export AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=true
+  mkdir -p "$AIRFLOW_HOME"
+fi
+
 if [ "$warehouse" = "postgres" ]; then
   export WAREHOUSE_DB=${WAREHOUSE_DB:-warehouse}
   export WAREHOUSE_USER=${WAREHOUSE_USER:-warehouse}
@@ -54,7 +63,11 @@ if [ "$warehouse" = "postgres" ]; then
     export COMPOSE_PROJECT_NAME="dpt-${warehouse}-${orchestrator}-$$"
     compose_cmd=$(detect_compose)
     echo "Starting Postgres via ${compose_cmd} on port ${WAREHOUSE_PORT}..."
-    $compose_cmd up -d
+    if [ "$orchestrator" = "airflow" ]; then
+      $compose_cmd up -d warehouse-db
+    else
+      $compose_cmd up -d
+    fi
     started_compose=1
     echo "Waiting for warehouse-db to become healthy..."
     until $compose_cmd exec -T warehouse-db pg_isready \
@@ -66,12 +79,23 @@ fi
 
 python3.12 -m venv .venv
 .venv/bin/python -m pip install --quiet --upgrade pip
-.venv/bin/python -m pip install --quiet -e '.[dev]'
 
 export PIPELINE_OFFLINE=1
+export PATH="$project/.venv/bin:$PATH"
+
+if [ "$orchestrator" = "airflow" ]; then
+  .venv/bin/python -m pip install --quiet -e '.[dev,airflow]'
+  airflow db migrate
+else
+  .venv/bin/python -m pip install --quiet -e '.[dev]'
+fi
 
 if [ -f Makefile ]; then
   make ci
 else
   .venv/bin/python -m pytest -q
+fi
+
+if [ "$orchestrator" = "airflow" ]; then
+  PIPELINE_OFFLINE=1 airflow dags test weather_pipeline "$(date -u +%F)"
 fi
