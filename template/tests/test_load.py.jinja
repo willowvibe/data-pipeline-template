@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import json
-{% if warehouse == 'postgres' %}
+{% if warehouse == 'postgres' -%}
 import os
-{% endif %}
+{% endif -%}
 from pathlib import Path
 
 import pytest
@@ -13,18 +13,20 @@ import pytest
 from {{ package_name }} import warehouse
 from {{ package_name }}.extract import write_raw
 from {{ package_name }}.load import load_all, load_file
-
 {% if warehouse == 'postgres' %}
 if not os.environ.get("WAREHOUSE_HOST"):
     pytest.skip("Postgres warehouse tests need WAREHOUSE_HOST", allow_module_level=True)
 {% endif %}
-
 
 @pytest.fixture()
 def raw_dir(sample_data, cities, tmp_path, monkeypatch):
     """Create a temporary raw tree for the first configured city."""
 {% if warehouse == 'duckdb' %}
     monkeypatch.setattr(warehouse, "DUCKDB_PATH", tmp_path / "warehouse.duckdb")
+{% else %}
+    with warehouse.connect() as conn:
+        conn.execute("DROP SCHEMA IF EXISTS raw CASCADE")
+        conn.commit()
 {% endif %}
     data_dir = tmp_path / "data"
     write_raw(cities[0], sample_data[cities[0].name], data_dir)
@@ -86,6 +88,6 @@ def test_failed_insert_rolls_back_the_delete(raw_dir):
     target.write_text(json.dumps(payload), encoding="utf-8")
 
     with warehouse.connect() as conn:
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017 - driver-specific error type
             load_file(conn, target)
         assert _count(conn) == loaded

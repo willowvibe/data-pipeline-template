@@ -1,0 +1,13 @@
+[sqlfluff]
+dialect = {{ warehouse }}
+# The plain jinja templater with dbt builtins is used instead of the dbt templater:
+# it needs no profile or live database, so linting stays fast and works offline.
+templater = jinja
+max_line_length = 100
+
+[sqlfluff:templater:jinja]
+apply_dbt_builtins = True
+
+[sqlfluff:indentation]
+indent_unit = space
+tab_space_size = 4

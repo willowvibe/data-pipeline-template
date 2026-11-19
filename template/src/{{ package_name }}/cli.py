@@ -19,9 +19,7 @@ def _parse_date(value: str) -> date:
     try:
         return date.fromisoformat(value)
     except ValueError as error:
-        raise argparse.ArgumentTypeError(
-            f"invalid date {value!r}; expected YYYY-MM-DD"
-        ) from error
+        raise argparse.ArgumentTypeError(f"invalid date {value!r}; expected YYYY-MM-DD") from error
 
 
 def _extract(args: argparse.Namespace) -> ExtractResult:

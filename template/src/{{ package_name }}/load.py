@@ -4,18 +4,17 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from .config import DATA_DIR
-from .warehouse import PARAM, begin, connect, ensure_schema
+from .warehouse import PARAM, begin, connect, ensure_schema, execute_many
 
 LOGGER = logging.getLogger(__name__)
 
 DELETE_SQL = (
-    f"DELETE FROM raw.hourly_weather "
-    f"WHERE city = {PARAM} AND CAST(observed_at AS DATE) = {PARAM}"
+    f"DELETE FROM raw.hourly_weather WHERE city = {PARAM} AND CAST(observed_at AS DATE) = {PARAM}"
 )
 
 INSERT_SQL = (
@@ -28,14 +27,16 @@ INSERT_SQL = (
 def _read_payload(path: Path) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
-        raise ValueError(f"raw file {path} does not contain a JSON object")
+        raise ValueError(  # noqa: TRY004 - keep ValueError for callers
+            f"raw file {path} does not contain a JSON object"
+        )
     return payload
 
 
 def _rows(payload: dict[str, Any]) -> list[tuple[Any, ...]]:
     city = payload["city"]
     hourly = payload["hourly"]
-    loaded_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    loaded_at = datetime.now(UTC).replace(tzinfo=None)
     return [
         (
             city,
@@ -64,7 +65,7 @@ def load_file(conn, path: Path) -> int:
     begin(conn)
     try:
         conn.execute(DELETE_SQL, (city, day))
-        conn.executemany(INSERT_SQL, rows)
+        execute_many(conn, INSERT_SQL, rows)
         conn.commit()
     except Exception:
         conn.rollback()

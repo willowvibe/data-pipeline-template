@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS raw.hourly_weather (
 )
 """
 
+
 {% if warehouse == 'duckdb' -%}
 @contextmanager
 def connect() -> Iterator[duckdb.DuckDBPyConnection]:
@@ -59,6 +60,11 @@ def connect() -> Iterator[duckdb.DuckDBPyConnection]:
 def begin(conn) -> None:
     """Start an explicit transaction; DuckDB autocommits every statement."""
     conn.execute("BEGIN")
+
+
+def execute_many(conn, sql: str, rows) -> None:
+    """Execute one parameterised statement for every row."""
+    conn.executemany(sql, rows)
 {% else -%}
 @contextmanager
 def connect() -> Iterator[psycopg.Connection]:
@@ -78,7 +84,13 @@ def connect() -> Iterator[psycopg.Connection]:
 
 def begin(conn) -> None:
     """Start a transaction; psycopg begins one before the first statement."""
-    return None
+    return
+
+
+def execute_many(conn, sql: str, rows) -> None:
+    """Execute one parameterised statement for every row through a cursor."""
+    with conn.cursor() as cursor:
+        cursor.executemany(sql, rows)
 {% endif %}
 
 def ensure_schema(conn) -> None:

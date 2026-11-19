@@ -39,11 +39,11 @@ class City:
 
 
 CITIES = [
-{% for city in cities -%}
+{%- for city in cities %}
     City(
         name={{ city.name | tojson }},
         latitude={{ city.latitude }},
         longitude={{ city.longitude }},
     ),
-{% endfor -%}
+{%- endfor %}
 ]
