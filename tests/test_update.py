@@ -1,3 +1,4 @@
+import re
 import shutil
 import subprocess
 import sys
@@ -48,11 +49,26 @@ def _describe_head() -> str:
 
 
 def _is_pep440_describe(description: str) -> bool:
+    match = re.match(r"^(?P<tag>.+)-(?P<n>\d+)-g(?P<sha>[0-9a-f]+)$", description)
+    candidate = match.group("tag") if match else description
     try:
-        Version(description)
+        Version(candidate)
     except InvalidVersion:
         return False
     return True
+
+
+@pytest.mark.parametrize(
+    ("description", "expected"),
+    [
+        ("v1.0.0", True),
+        ("v1.0.0-3-gb2401ce", True),
+        ("b2401ce", False),
+        ("not-a-version-2-gabc123", False),
+    ],
+)
+def test_is_pep440_describe(description: str, expected: bool) -> None:
+    assert _is_pep440_describe(description) is expected
 
 
 def test_copier_update_from_newest_tag(tmp_path: Path) -> None:
@@ -98,6 +114,7 @@ def test_copier_update_from_newest_tag(tmp_path: Path) -> None:
     )
     assert commit_result.returncode == 0, commit_result.stderr
 
+    head_commit = _git("rev-parse", "HEAD").stdout.strip()
     head_description = _describe_head()
     if not _is_pep440_describe(head_description):
         pytest.skip(
@@ -113,7 +130,7 @@ def test_copier_update_from_newest_tag(tmp_path: Path) -> None:
             "update",
             "--defaults",
             "--vcs-ref",
-            "HEAD",
+            head_commit,
         ],
         cwd=project,
     )
