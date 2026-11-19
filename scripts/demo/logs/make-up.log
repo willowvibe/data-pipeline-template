@@ -1,0 +1,107 @@
+.venv/bin/python -m weather_pipeline run
+INFO HTTP Request: GET https://api.open-meteo.com/v1/forecast?latitude=12.97&longitude=77.59&hourly=temperature_2m%2Crelative_humidity_2m%2Cprecipitation%2Cwind_speed_10m&timezone=UTC&past_days=2&forecast_days=1 "HTTP/1.1 200 OK"
+INFO HTTP Request: GET https://api.open-meteo.com/v1/forecast?latitude=51.51&longitude=-0.13&hourly=temperature_2m%2Crelative_humidity_2m%2Cprecipitation%2Cwind_speed_10m&timezone=UTC&past_days=2&forecast_days=1 "HTTP/1.1 200 OK"
+INFO HTTP Request: GET https://api.open-meteo.com/v1/forecast?latitude=40.71&longitude=-74.01&hourly=temperature_2m%2Crelative_humidity_2m%2Cprecipitation%2Cwind_speed_10m&timezone=UTC&past_days=2&forecast_days=1 "HTTP/1.1 200 OK"
+INFO loaded 24 rows for Bengaluru on 2026-11-17
+INFO loaded 24 rows for Bengaluru on 2026-11-18
+INFO loaded 24 rows for Bengaluru on 2026-11-19
+INFO loaded 24 rows for London on 2026-11-17
+INFO loaded 24 rows for London on 2026-11-18
+INFO loaded 24 rows for London on 2026-11-19
+INFO loaded 24 rows for New York on 2026-11-17
+INFO loaded 24 rows for New York on 2026-11-18
+INFO loaded 24 rows for New York on 2026-11-19
+INFO loaded 216 rows from 9 raw files
+INFO loaded 216 rows
+INFO wrote 9 raw files
+.venv/bin/dbt seed --project-dir dbt --profiles-dir dbt
+10:23:19  Running with dbt=1.12.7
+10:23:19  Registered adapter: duckdb=1.11.1
+10:23:19  Unable to do partial parsing because saved manifest not found. Starting full parse.
+10:23:21  Found 3 models, 21 data tests, 1 seed, 1 source, 514 macros
+10:23:21  
+10:23:21  Concurrency: 1 threads (target='dev')
+10:23:21  
+10:23:21  1 of 1 START seed file main.cities ............................................. [RUN]
+10:23:21  1 of 1 OK loaded seed file main.cities ......................................... [INSERT 3 in 0.06s]
+10:23:21  
+10:23:21  Finished running 1 seed in 0 hours 0 minutes and 0.14 seconds (0.14s).
+10:23:21  
+10:23:21  Completed successfully
+10:23:21  
+10:23:21  Done. PASS=1 WARN=0 ERROR=0 SKIP=0 NO-OP=0 REUSED=0 TOTAL=1
+.venv/bin/dbt build --project-dir dbt --profiles-dir dbt
+10:23:24  Running with dbt=1.12.7
+10:23:24  Registered adapter: duckdb=1.11.1
+10:23:24  Found 3 models, 21 data tests, 1 seed, 1 source, 514 macros
+10:23:24  
+10:23:24  Concurrency: 1 threads (target='dev')
+10:23:24  
+10:23:24  1 of 25 START sql view model main.stg_hourly_weather ........................... [RUN]
+10:23:24  1 of 25 OK created sql view model main.stg_hourly_weather ...................... [OK in 0.06s]
+10:23:24  2 of 25 START seed file main.cities ............................................ [RUN]
+10:23:25  2 of 25 OK loaded seed file main.cities ........................................ [INSERT 3 in 0.04s]
+10:23:25  3 of 25 START test accepted_range_stg_hourly_weather_humidity_pct__100__0 ...... [RUN]
+10:23:25  3 of 25 PASS accepted_range_stg_hourly_weather_humidity_pct__100__0 ............ [PASS in 0.03s]
+10:23:25  4 of 25 START test accepted_range_stg_hourly_weather_precipitation_mm__1000__0 . [RUN]
+10:23:25  4 of 25 PASS accepted_range_stg_hourly_weather_precipitation_mm__1000__0 ....... [PASS in 0.01s]
+10:23:25  5 of 25 START test accepted_range_stg_hourly_weather_temperature_c__60___60 .... [RUN]
+10:23:25  5 of 25 PASS accepted_range_stg_hourly_weather_temperature_c__60___60 .......... [PASS in 0.01s]
+10:23:25  6 of 25 START test accepted_range_stg_hourly_weather_wind_kmh__500__0 .......... [RUN]
+10:23:25  6 of 25 PASS accepted_range_stg_hourly_weather_wind_kmh__500__0 ................ [PASS in 0.01s]
+10:23:25  7 of 25 START test not_null_stg_hourly_weather_city ............................ [RUN]
+10:23:25  7 of 25 PASS not_null_stg_hourly_weather_city .................................. [PASS in 0.01s]
+10:23:25  8 of 25 START test not_null_stg_hourly_weather_humidity_pct .................... [RUN]
+10:23:25  8 of 25 PASS not_null_stg_hourly_weather_humidity_pct .......................... [PASS in 0.01s]
+10:23:25  9 of 25 START test not_null_stg_hourly_weather_loaded_at ....................... [RUN]
+10:23:25  9 of 25 PASS not_null_stg_hourly_weather_loaded_at ............................. [PASS in 0.01s]
+10:23:25  10 of 25 START test not_null_stg_hourly_weather_observed_at .................... [RUN]
+10:23:25  10 of 25 PASS not_null_stg_hourly_weather_observed_at .......................... [PASS in 0.01s]
+10:23:25  11 of 25 START test not_null_stg_hourly_weather_precipitation_mm ............... [RUN]
+10:23:25  11 of 25 PASS not_null_stg_hourly_weather_precipitation_mm ..................... [PASS in 0.01s]
+10:23:25  12 of 25 START test not_null_stg_hourly_weather_temperature_c .................. [RUN]
+10:23:25  12 of 25 PASS not_null_stg_hourly_weather_temperature_c ........................ [PASS in 0.01s]
+10:23:25  13 of 25 START test not_null_stg_hourly_weather_wind_kmh ....................... [RUN]
+10:23:25  13 of 25 PASS not_null_stg_hourly_weather_wind_kmh ............................. [PASS in 0.01s]
+10:23:25  14 of 25 START test unique_combination_of_columns_stg_hourly_weather_city__observed_at  [RUN]
+10:23:25  14 of 25 PASS unique_combination_of_columns_stg_hourly_weather_city__observed_at  [PASS in 0.02s]
+10:23:25  15 of 25 START sql table model main.daily_city_weather ......................... [RUN]
+10:23:25  15 of 25 OK created sql table model main.daily_city_weather .................... [OK in 0.06s]
+10:23:25  16 of 25 START test daily_hours_observed_within_limit .......................... [RUN]
+10:23:25  16 of 25 PASS daily_hours_observed_within_limit ................................ [PASS in 0.01s]
+10:23:25  17 of 25 START test not_null_daily_city_weather_city ........................... [RUN]
+10:23:25  17 of 25 PASS not_null_daily_city_weather_city ................................. [PASS in 0.01s]
+10:23:25  18 of 25 START test not_null_daily_city_weather_hours_observed ................. [RUN]
+10:23:25  18 of 25 PASS not_null_daily_city_weather_hours_observed ....................... [PASS in 0.01s]
+10:23:25  19 of 25 START test not_null_daily_city_weather_observation_date ............... [RUN]
+10:23:25  19 of 25 PASS not_null_daily_city_weather_observation_date ..................... [PASS in 0.01s]
+10:23:25  20 of 25 START test relationships_daily_city_weather_city__name__ref_cities_ ... [RUN]
+10:23:25  20 of 25 PASS relationships_daily_city_weather_city__name__ref_cities_ ......... [PASS in 0.02s]
+10:23:25  21 of 25 START test unique_combination_of_columns_daily_city_weather_city__observation_date  [RUN]
+10:23:25  21 of 25 PASS unique_combination_of_columns_daily_city_weather_city__observation_date  [PASS in 0.01s]
+10:23:25  22 of 25 START sql table model main.city_extremes .............................. [RUN]
+10:23:25  22 of 25 OK created sql table model main.city_extremes ......................... [OK in 0.03s]
+10:23:25  23 of 25 START test not_null_city_extremes_city ................................ [RUN]
+10:23:25  23 of 25 PASS not_null_city_extremes_city ...................................... [PASS in 0.01s]
+10:23:25  24 of 25 START test relationships_city_extremes_city__name__ref_cities_ ........ [RUN]
+10:23:25  24 of 25 PASS relationships_city_extremes_city__name__ref_cities_ .............. [PASS in 0.01s]
+10:23:25  25 of 25 START test unique_city_extremes_city .................................. [RUN]
+10:23:25  25 of 25 PASS unique_city_extremes_city ........................................ [PASS in 0.01s]
+10:23:25  
+10:23:25  Finished running 1 seed, 2 table models, 21 data tests, 1 view model in 0 hours 0 minutes and 0.56 seconds (0.56s).
+10:23:25  
+10:23:25  Completed successfully
+10:23:25  
+10:23:25  Done. PASS=25 WARN=0 ERROR=0 SKIP=0 NO-OP=0 REUSED=0 TOTAL=25
+.venv/bin/dbt source freshness --project-dir dbt --profiles-dir dbt
+10:23:28  Running with dbt=1.12.7
+10:23:28  Registered adapter: duckdb=1.11.1
+10:23:29  Found 3 models, 21 data tests, 1 seed, 1 source, 514 macros
+10:23:29  
+10:23:29  Concurrency: 1 threads (target='dev')
+10:23:29  
+10:23:29  1 of 1 START freshness of raw.hourly_weather ................................... [RUN]
+10:23:29  1 of 1 PASS freshness of raw.hourly_weather .................................... [PASS in 0.01s]
+10:23:29  
+10:23:29  Finished running 1 source in 0 hours 0 minutes and 0.07 seconds (0.07s).
+10:23:29  Done.
