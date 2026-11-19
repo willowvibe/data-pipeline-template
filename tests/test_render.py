@@ -77,9 +77,26 @@ def test_render_shape(copie, warehouse, orchestrator):
     dag_test = project / "tests" / "test_dag.py"
     if orchestrator == "airflow":
         assert airflow_dir.is_dir()
-        assert (airflow_dir / "dags" / "weather_pipeline.py").is_file()
+        dag_path = airflow_dir / "dags" / "weather_pipeline.py"
+        assert dag_path.is_file()
+        dag_source = dag_path.read_text(encoding="utf-8")
+        assert "should_detach_multiple_parents_tests=True" in dag_source
+        if warehouse == "duckdb":
+            assert "max_active_tasks=1" in dag_source
+        else:
+            assert "max_active_tasks=1" not in dag_source
         assert dag_test.is_file()
         assert "airflow-dag" in workflow["jobs"]
+        compose = compose_path.read_text(encoding="utf-8")
+        assert "AIRFLOW__CORE__EXECUTION_API_SERVER_URL" in compose
+        assert "exec /entrypoint airflow version" in compose
+        assert "_AIRFLOW_DB_MIGRATE" in compose
+        makefile = (project / "Makefile").read_text(encoding="utf-8")
+        assert "airflow dags details weather_pipeline" in makefile
+        assert "AIRFLOW_UID ?= $(shell id -u)" in makefile
+        env_example = (project / ".env.example").read_text(encoding="utf-8")
+        for line in env_example.splitlines():
+            assert not line.strip().startswith("AIRFLOW_UID="), line
     else:
         assert not airflow_dir.exists()
         assert not dag_test.exists()

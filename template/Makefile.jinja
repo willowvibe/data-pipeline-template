@@ -7,6 +7,9 @@ DBT_FLAGS ?= --project-dir dbt --profiles-dir dbt
 {% if warehouse == 'postgres' or orchestrator == 'airflow' %}
 -include .env
 {% endif %}
+{% if orchestrator == 'airflow' %}
+export AIRFLOW_UID ?= $(shell id -u)
+{% endif %}
 {% if warehouse == 'postgres' %}
 WAREHOUSE_HOST ?= localhost
 WAREHOUSE_PORT ?= 5436
@@ -62,10 +65,13 @@ ci: lint test
 
 {% if orchestrator == 'airflow' %}
 up:
+	mkdir -p data/raw
 	$(COMPOSE) build
 	$(COMPOSE) up -d
 	@echo "Waiting for the Airflow apiserver to become healthy..."
 	@until $(COMPOSE) exec -T airflow-apiserver curl --fail --silent http://localhost:8080/api/v2/monitor/health >/dev/null 2>&1; do sleep 2; done
+	@echo "Waiting for the DAG to be parsed..."
+	@until $(COMPOSE) exec -T airflow-scheduler airflow dags details weather_pipeline >/dev/null 2>&1; do sleep 2; done
 	$(COMPOSE) exec -T airflow-scheduler airflow dags unpause weather_pipeline
 	$(COMPOSE) exec -T airflow-scheduler airflow dags trigger weather_pipeline
 	@echo "Airflow UI: http://localhost:$(AIRFLOW_PORT) (login: $(AIRFLOW_USERNAME) / $(AIRFLOW_PASSWORD))"

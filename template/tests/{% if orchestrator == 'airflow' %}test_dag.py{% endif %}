@@ -36,7 +36,11 @@ def test_dag_structure(dag_bag):
     assert "load" in task_ids
     assert "source_freshness" in task_ids
     assert any("stg_hourly_weather" in task_id for task_id in task_ids)
+
+    dag_source = (DAGS_DIR / "weather_pipeline.py").read_text(encoding="utf-8")
+    assert "should_detach_multiple_parents_tests=True" in dag_source
     assert dag.catchup is False
+    assert dag.max_active_runs == 1
     assert dag.default_args["retries"] == 2
     assert dag.default_args["retry_delay"].total_seconds() == 300
 
