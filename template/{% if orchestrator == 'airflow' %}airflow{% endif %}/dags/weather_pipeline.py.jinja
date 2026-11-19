@@ -9,7 +9,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from cosmos import DbtTaskGroup, ExecutionConfig, ProfileConfig, ProjectConfig
+from cosmos import DbtTaskGroup, ExecutionConfig, ProfileConfig, ProjectConfig, RenderConfig
 from cosmos.constants import InvocationMode
 
 try:  # Airflow 3 moved the public authoring classes into the task SDK.
@@ -77,6 +77,11 @@ with DAG(
     schedule="@daily",
     start_date=datetime(2024, 1, 1, tzinfo=UTC),
     catchup=False,
+    max_active_runs=1,
+{% if warehouse == 'duckdb' %}
+    # DuckDB allows one writer, so tasks run one at a time; Postgres renders keep parallelism.
+    max_active_tasks=1,
+{% endif %}
     default_args=DEFAULT_ARGS,
     tags=["weather", "dbt"],
 ) as dag:
@@ -103,6 +108,8 @@ with DAG(
             dbt_executable_path=DBT_EXECUTABLE,
             invocation_mode=InvocationMode.SUBPROCESS,
         ),
+        # Multi-parent tests also run in model test tasks; detach them so they wait for every parent.
+        render_config=RenderConfig(should_detach_multiple_parents_tests=True),
         operator_args={"install_deps": False},
     )
 

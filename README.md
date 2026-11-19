@@ -30,8 +30,8 @@ Everything is wired to run locally and in CI on day one.
   `make ci` and demos never depend on the network.
 
 All four combinations (`duckdb | postgres` × `none | airflow`) are rendered and exercised by
-the template's CI. In local verification the generated Airflow DAG run completed 11 of 11
-tasks.
+the template's CI. In local verification `make up` brought the Airflow stack up and the DAG
+run completed all of its tasks.
 
 ## Quickstart
 
@@ -125,7 +125,7 @@ Open-Meteo ──extract──▶ data/raw/<city>/<date>.json ──load──�
 
 ## What CI proves
 
-`.github/workflows/ci.yml` in this repository has two jobs:
+`.github/workflows/ci.yml` in this repository has three jobs:
 
 - **`render-tests`** renders all four combinations with pytest-copie and checks the shape:
   conditional files exist only for the chosen options, the dbt profile matches the
@@ -141,6 +141,10 @@ Postgres legs use a `postgres:16` service container and pass `WAREHOUSE_HOST=loc
 `airflow dags test weather_pipeline <today>` in a temporary `AIRFLOW_HOME`, so the DAG and
 its Cosmos tasks execute without a webserver. CI installs Airflow without the official
 constraints file because it conflicts with the pinned `duckdb` and `tenacity` versions.
+
+- **`airflow-stack`** renders the `airflow` orchestrator with both warehouses (`duckdb` and
+  `postgres`), runs the generated `make up` against a real Docker Compose stack (scheduler,
+  apiserver and dag-processor), and waits for every `weather_pipeline` DAG run to succeed.
 
 `.github/workflows/live-api.yml` is a separate weekly (and manually dispatchable) job that
 renders `duckdb` + `none` and runs `make run build` against the real Open-Meteo API. It is

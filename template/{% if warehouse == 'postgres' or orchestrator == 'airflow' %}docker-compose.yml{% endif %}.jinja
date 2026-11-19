@@ -34,6 +34,7 @@ x-airflow-common: &airflow-common
   image: ${COMPOSE_PROJECT_NAME:-weather-pipeline}-airflow:latest
   environment: &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-apiserver:8080/execution/'
     AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIRFLOW_DB_USER:-airflow}:${AIRFLOW_DB_PASSWORD:-airflow}@airflow-db:5432/${AIRFLOW_DB:-airflow}
     AIRFLOW__CORE__FERNET_KEY: ''
@@ -107,19 +108,16 @@ services:
   airflow-init:
     <<: *airflow-common
     entrypoint: /bin/bash
+    # The image entrypoint migrates the DB, creates the admin user and
+    # registers the host uid in /etc/passwd before Airflow starts.
     command:
       - -c
       - |
-        airflow db migrate
-        airflow users create \
-          --username "$${_AIRFLOW_WWW_USER_USERNAME}" \
-          --firstname Airflow \
-          --lastname Admin \
-          --role Admin \
-          --email admin@example.com \
-          --password "$${_AIRFLOW_WWW_USER_PASSWORD}"
+        exec /entrypoint airflow version
     environment:
       <<: *airflow-common-env
+      _AIRFLOW_DB_MIGRATE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
       _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-airflow}
       _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-airflow}
     restart: "no"
