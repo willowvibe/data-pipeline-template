@@ -2,7 +2,7 @@
 
 COMPOSE ?= $(shell docker compose version >/dev/null 2>&1 && echo "docker compose" || echo docker-compose)
 PYTHON ?= .venv/bin/python
-DBT ?= $(PYTHON) -m dbt.cli.main
+DBT := .venv/bin/dbt
 DBT_FLAGS ?= --project-dir dbt --profiles-dir dbt
 {% if warehouse == 'postgres' or orchestrator == 'airflow' %}
 -include .env
@@ -88,4 +88,5 @@ down:
 {% endif %}
 
 clean:
-	rm -rf data dbt/target dbt/logs .pytest_cache
+	find data -mindepth 1 ! -name .gitkeep -delete
+	rm -rf dbt/target dbt/logs .pytest_cache

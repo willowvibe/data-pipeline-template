@@ -48,6 +48,8 @@ def test_render_shape(copie, warehouse, orchestrator):
     assert (project / "src" / PACKAGE_NAME / "__init__.py").is_file()
     assert (project / "pyproject.toml").is_file()
     assert (project / "README.md").is_file()
+    assert (project / "data" / ".gitkeep").is_file()
+    assert "!data/.gitkeep" in (project / ".gitignore").read_text(encoding="utf-8")
 
     for path in _text_files(project):
         parts = path.relative_to(project).parts
