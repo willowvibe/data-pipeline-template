@@ -1,0 +1,29 @@
+# Airflow image for the generated weather pipeline.
+# Based on the official apache/airflow image (Apache-2.0). Extra packages are added the way the
+# Airflow image docs recommend: pin apache-airflow to the image's version on the same pip line
+# (so pip can never change Airflow) and let the project's own pins resolve. The Airflow constraints
+# file is not used here because it pins duckdb/tenacity versions the project deliberately differs on.
+FROM apache/airflow:3.4.0-python3.12
+
+ARG AIRFLOW_VERSION=3.4.0
+
+ENV PIPELINE_HOME=/opt/airflow/project \
+    PIPELINE_DATA_DIR=/opt/airflow/project/data
+
+USER root
+RUN mkdir -p "${PIPELINE_HOME}" && chown -R airflow:root "${PIPELINE_HOME}"
+COPY --chown=airflow:root pyproject.toml "${PIPELINE_HOME}/pyproject.toml"
+COPY --chown=airflow:root src "${PIPELINE_HOME}/src"
+
+WORKDIR ${PIPELINE_HOME}
+USER airflow
+
+RUN pip install --no-cache-dir \
+        "apache-airflow==${AIRFLOW_VERSION}" \
+        "astronomer-cosmos~=1.16" \
+{% if warehouse == 'duckdb' -%}
+        "dbt-duckdb~=1.11" \
+{% else -%}
+        "dbt-postgres~=1.11" \
+{% endif -%}
+        .
