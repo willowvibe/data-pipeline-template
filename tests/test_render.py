@@ -10,6 +10,8 @@ COMBINATIONS = [
     ("postgres", "airflow"),
 ]
 
+PACKAGE_NAME = "weather_pipeline"
+
 TEXT_SUFFIXES = {".md", ".py", ".toml", ".yml", ".yaml", ".txt", ".ini", ".cfg", ".sh"}
 
 
@@ -43,7 +45,7 @@ def test_render_shape(copie, warehouse, orchestrator):
 
     project = result.project_dir
     assert (project / ".copier-answers.yml").is_file()
-    assert (project / "src" / "weather_pipeline" / "__init__.py").is_file()
+    assert (project / "src" / PACKAGE_NAME / "__init__.py").is_file()
     assert (project / "pyproject.toml").is_file()
     assert (project / "README.md").is_file()
 
@@ -62,3 +64,28 @@ def test_render_shape(copie, warehouse, orchestrator):
     workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
     assert isinstance(workflow, dict)
     assert "jobs" in workflow
+
+    compose_path = project / "docker-compose.yml"
+    if warehouse == "duckdb" and orchestrator == "none":
+        assert not compose_path.exists()
+    else:
+        assert compose_path.is_file()
+
+    airflow_dir = project / "airflow"
+    dag_test = project / "tests" / "test_dag.py"
+    if orchestrator == "airflow":
+        assert airflow_dir.is_dir()
+        assert (airflow_dir / "dags" / "weather_pipeline.py").is_file()
+        assert dag_test.is_file()
+        assert "airflow-dag" in workflow["jobs"]
+    else:
+        assert not airflow_dir.exists()
+        assert not dag_test.exists()
+        assert "airflow-dag" not in workflow["jobs"]
+
+    profiles = (project / "dbt" / "profiles.yml").read_text(encoding="utf-8")
+    assert f"type: {warehouse}" in profiles
+
+    assert PACKAGE_NAME in (project / "pyproject.toml").read_text(encoding="utf-8")
+    assert PACKAGE_NAME in (project / "dbt" / "dbt_project.yml").read_text(encoding="utf-8")
+    assert (project / "src" / PACKAGE_NAME).is_dir()

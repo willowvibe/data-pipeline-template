@@ -27,6 +27,7 @@ export AIRFLOW_PORT AIRFLOW_USERNAME AIRFLOW_PASSWORD
 .PHONY: install extract load run backfill build test lint ci up down clean
 
 install:
+	test -x $(PYTHON) || python{{ python_version }} -m venv .venv
 	$(PYTHON) -m pip install --upgrade pip
 	$(PYTHON) -m pip install -e '.[dev]'
 

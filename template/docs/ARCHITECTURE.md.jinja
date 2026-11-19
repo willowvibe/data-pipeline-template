@@ -1,0 +1,149 @@
+# {{ project_name }} architecture
+
+This document describes how the generated pipeline moves data from Open-Meteo to the
+dbt marts, why the layers are shaped this way, and how to extend the design.
+
+## Data flow
+
+```mermaid
+flowchart LR
+    API[Open-Meteo API] -->|extract| RAW[data/raw/city/date.json]
+    RAW -->|load, delete then insert| DB[(raw.hourly_weather)]
+    SEED[dbt seed: cities] --> STG
+    DB --> STG[stg_hourly_weather]
+    STG --> DAILY[daily_city_weather]
+    STG --> EXTREMES[city_extremes]
+    DAILY --> EXTREMES
+```
+
+- **Extract** makes one request per city, validates the response, and writes one raw
+  JSON file per city per UTC date under `data/raw/<city-slug>/<YYYY-MM-DD>.json`.
+  Hourly arrays are split by the date in their `time` values. The raw file also records
+  the city name, coordinates and units.
+- **Load** reads every raw file, deletes the existing rows for that city and date, and
+  inserts the file's rows in one transaction into `raw.hourly_weather`.
+- **The dbt seed** writes the `cities` seed so marts can be joined to the configured
+  city list and tested with `relationships`.
+- **Staging** casts the raw columns, drops rows observed after `now()`, and dedupes on
+  `(city, observed_at)` keeping the latest `loaded_at`.
+- **Marts** aggregate the staging view into daily city statistics and all-time city
+  extremes. Both are materialised as tables.
+
+The raw table is:
+
+```text
+raw.hourly_weather(
+    city,
+    observed_at,
+    temperature_c,
+    humidity_pct,
+    precipitation_mm,
+    wind_kmh,
+    loaded_at
+)
+```
+
+{% if orchestrator == 'airflow' -%}
+## Airflow shape
+
+The DAG `weather_pipeline` runs daily with `catchup=False`:
+
+```mermaid
+flowchart LR
+    EX[extract] --> LO[load]
+    LO --> DBT[Cosmos DbtTaskGroup]
+    DBT --> SF[source_freshness]
+```
+
+- `extract` and `load` are Python tasks calling the same functions as the CLI.
+  For normal scheduled runs they use the forecast window. For backfill runs they pass
+  `data_interval_start` and `data_interval_end` to the archive API.
+- The Cosmos `DbtTaskGroup` reads `dbt/profiles.yml` directly through `ProfileConfig`;
+  no Airflow Connection is required. Every dbt model and its tests become individual
+  Airflow tasks, so a failing model is visible by name and only its dependants are
+  skipped. Cosmos runs dbt in subprocess mode, which also releases the DuckDB file
+  lock between tasks.
+- `source_freshness` is a final BashOperator running dbt's source-freshness check
+  through the same project and profiles directories. It fails when `loaded_at` is
+  older than the configured 24-hour error threshold.
+
+The local stack uses LocalExecutor and Postgres for Airflow metadata. For
+`warehouse = postgres`, the same Compose file adds a separate `warehouse-db` container
+and a `warehouse` database; for `warehouse = duckdb`, the project's `data/` directory is
+mounted into every Airflow container so all tasks see the same DuckDB file.
+
+{% endif -%}
+## Design choices
+
+### Raw JSON is kept for replay
+
+Raw responses are stored before any transformation. If a dbt model is wrong, fix the
+model and rerun `make build` without calling the API. If the load is wrong, fix
+`load.py` and rerun `make load` from the same files. Keeping one file per city and date
+also makes a failed load easy to isolate. The raw files are treated as an immutable
+copy of the source response; future forecast hours are removed only in staging.
+
+### Delete-then-insert makes loads idempotent
+
+Each file represents one city and one UTC date. `load_file` deletes rows matching that
+pair and inserts the file's rows inside a single transaction. Re-running a daily load
+or a backfill therefore replaces data instead of duplicating it. If any statement
+fails, the transaction rolls back and the earlier rows remain untouched. The SQL uses
+only `DELETE` and `INSERT` with the placeholder style selected in `warehouse.py`
+(`?` for DuckDB, `%s` for psycopg), so the same logic runs on both warehouses.
+
+### The offline fixture is a first-class test path
+
+`--offline` or `PIPELINE_OFFLINE=1` makes extraction read
+`tests/fixtures/open_meteo_sample.json` instead of the network. The fixture is keyed by
+city name and re-dated on read so its last day is today, which keeps source freshness
+passing. The fixture exercises the same validation, splitting and loading code as a
+live response. `make test` and `make ci` use it, so CI is deterministic and never
+depends on the weather or the Open-Meteo service being available.
+
+### Cosmos gives per-model observability
+
+Without an orchestrator, `make build` runs dbt's seed, build and freshness steps in
+one go. With Airflow, Cosmos expands the same dbt project into a task group. Each
+model, seed and test appears as
+its own task, which makes failures and reruns precise. The trade-off is more tasks and
+a slightly slower run; for a project this size that is a good exchange for visibility.
+
+### Small, replaceable boundaries
+
+`config.py` holds settings and the city list, `extract.py` owns the source API,
+`warehouse.py` owns connection and schema creation, and `load.py` owns the raw-to-table
+mapping. dbt owns all modelling and tests. Replacing the weather source should not
+require touching orchestration code, and replacing the warehouse should not require
+touching dbt models.
+
+## Adding BigQuery or Snowflake
+
+These warehouses are not part of the template's v1 options, but the boundaries above
+are intentional extension points:
+
+1. **Add the Copier option** — add `bigquery` or `snowflake` to the `warehouse` choices
+   in the template's `copier.yml`.
+2. **Add a warehouse branch** — extend `src/{{ package_name }}/warehouse.py.jinja` with
+   a `connect()`, `begin()` and `execute_many()` implementation for the client library
+   (for example `google-cloud-bigquery` or `snowflake-connector-python`). Keep the same
+   `PARAM` contract used by `load.py`, or move the insert to the adapter's bulk-load
+   helper if the client does not support DB-API parameter styles.
+3. **Add the dbt target** — extend `dbt/profiles.yml.jinja` with the adapter's `type`
+   and environment variables, such as project/dataset for BigQuery or account, role,
+   warehouse and database for Snowflake. Add `dbt-bigquery` or `dbt-snowflake` to the
+   generated dependencies in `pyproject.toml.jinja`.
+4. **Adjust local infrastructure** — cloud warehouses do not need the Postgres
+   Compose service. Update the conditional `docker-compose.yml` and `make up` so they
+   only start what is required, and add the new variables to `.env.example`.
+5. **Keep the SQL portable** — the marts currently use only `CAST`, `min`, `max`,
+   `avg`, `sum`, `count`, `row_number` and `now()`, which all supported adapters
+   understand. Avoid dialect-specific functions unless they are guarded by the adapter
+   type, and keep the generic tests and grain assertions.
+6. **Credentials** — read credentials from environment variables or a secret manager
+   and never commit them. Keep local `.env` files git-ignored and use placeholder
+   values in `.env.example`.
+
+If a warehouse only needs to serve dbt (no raw load through Python), skip the
+`warehouse.py` / `load.py` branch and point the extractor at a staging export instead.
+The rest of the pipeline, including the marts, tests and orchestration, stays the same.

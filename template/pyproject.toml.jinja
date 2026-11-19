@@ -21,6 +21,9 @@ dependencies = [
     "tenacity~=9.2",
 ]
 
+[project.scripts]
+{{ project_name }} = "{{ package_name }}.cli:main"
+
 [project.optional-dependencies]
 dev = ["pytest~=8.4", "ruff~=0.17", "sqlfluff~=4.5", "pre-commit~=4.0"]
 {% if orchestrator == 'airflow' %}

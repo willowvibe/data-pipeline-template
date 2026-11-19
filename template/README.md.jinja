@@ -1,18 +1,233 @@
 # {{ project_name }}
 
-A data pipeline generated with Copier.
+{{ project_name }} is a small, tested data pipeline generated with
+[data-pipeline-template](https://github.com/willowvibe/data-pipeline-template).
+It fetches hourly weather for {{ cities | length }} cities from
+[Open-Meteo](https://open-meteo.com/), keeps the raw JSON for replay, loads it into
+`{{ warehouse }}`, and models it with dbt into daily city summaries and all-time city
+extremes.
 
 ## Chosen options
 
 | Option | Value |
 |---|---|
-| Warehouse | {{ warehouse }} |
-| Orchestrator | {{ orchestrator }} |
-| Python version | {{ python_version }} |
-| Author | {{ author_name }} |
+| Project name | `{{ project_name }}` |
+| Python package / dbt project | `{{ package_name }}` |
+| Warehouse | `{{ warehouse }}` |
+| Orchestrator | `{{ orchestrator }}` |
+| Python version | `{{ python_version }}` |
+| Author | `{{ author_name }}` |
 
-## Cities
+Cities: {% for city in cities %}{{ city.name }}{% if not loop.last %}, {% endif %}{% endfor %}.
 
-{% for city in cities -%}
-- {{ city.name }} ({{ city.latitude }}, {{ city.longitude }})
-{% endfor %}
+## Quickstart
+
+{% if orchestrator == 'airflow' -%}
+Docker is required for the Airflow stack. Copy `.env.example` to `.env` if you want to
+change the default ports, credentials or Airflow user; the defaults work for local
+development. Keep `.env` out of git and never put real secrets in it. `make install`
+and `make test` use a Python {{ python_version }} virtualenv at `.venv`.
+
+```bash
+make install
+make up
+make test
+```
+
+`make up` builds the Airflow image, starts the metadata database, apiserver, scheduler
+and DAG processor, waits for health, then unpauses and triggers `weather_pipeline`.
+The UI is at <http://localhost:8080> (default login `airflow` / `airflow`; set
+`AIRFLOW_PORT`, `_AIRFLOW_WWW_USER_USERNAME` and `_AIRFLOW_WWW_USER_PASSWORD` in
+`.env` to change these). `make test` runs the offline Python tests locally.
+{% elif warehouse == 'postgres' -%}
+Docker is required for the local Postgres warehouse. Copy `.env.example` to `.env`
+if you want to change the default connection or host port; the defaults work out of
+the box. Keep `.env` out of git and never put real secrets in it. `make install` and
+`make test` use a Python {{ python_version }} virtualenv at `.venv`.
+
+```bash
+make install
+make up
+make test
+```
+
+`make up` starts the `warehouse-db` service, waits for it to become healthy, then
+extracts, loads and builds the dbt models. The database is exposed on
+`localhost:5436` (`WAREHOUSE_PORT`) by default.
+{% else -%}
+A Python {{ python_version }} virtualenv at `.venv` is all you need; `make install`
+installs the project into it. Docker is not required for the DuckDB setup.
+
+```bash
+make install
+make up
+make test
+```
+
+`make up` extracts, loads and builds the dbt models. The DuckDB file is written to
+`data/warehouse.duckdb` and is git-ignored.
+{% endif %}
+
+To run without calling the Open-Meteo API, use the recorded fixture:
+`PIPELINE_OFFLINE=1 make run`. `make test` and `make ci` always run offline.
+
+## Makefile targets
+
+| Target | What it does |
+|---|---|
+| `make install` | Installs the project and dev dependencies into `.venv` (editable). |
+| `make extract` | Fetches the forecast window and writes raw JSON under `data/raw/`. |
+| `make load` | Loads every raw file into the warehouse idempotently. |
+| `make run` | Runs `extract` then `load`. |
+| `make backfill START=YYYY-MM-DD END=YYYY-MM-DD` | Fetches the historic archive range and writes raw JSON. It does **not** load or rebuild; run `make load build` afterwards. |
+| `make build` | Runs the dbt seed, build and source-freshness steps. |
+| `make test` | Runs the pytest suite in offline mode. |
+| `make lint` | Runs ruff (check and format check) and sqlfluff. |
+| `make ci` | Runs lint, tests, an offline `run` and `make build`. |
+| `make up` | {% if orchestrator == 'airflow' %}Builds and starts the Airflow stack, then triggers the DAG.{% elif warehouse == 'postgres' %}Starts Postgres, waits for health, then runs `run` and `build`.{% else %}Runs `run` and `build` against the local DuckDB file.{% endif %} |
+| `make down` | {% if warehouse == 'postgres' or orchestrator == 'airflow' %}Stops the Compose services. Add `VOLUMES=1` to delete their volumes.{% else %}Prints that there is nothing to stop for DuckDB.{% endif %} |
+| `make clean` | Removes `data/`, dbt `target/` and `logs/`, and `.pytest_cache`. |
+
+Set `COMPOSE` to override the detected Compose command, for example
+`COMPOSE="docker compose" make up`.
+
+## Configuration
+
+All settings are environment variables. For the Postgres and Airflow options the
+Makefile loads `.env` automatically when it exists. `.env` is git-ignored, and
+`.env.example` contains placeholders only.
+
+| Variable | Default | Used by |
+|---|---|---|
+| `PIPELINE_DATA_DIR` | `./data` | Extract and load. Raw files live in `data/raw/`. |
+| `PIPELINE_OFFLINE` | unset | Set to `1` to read the recorded fixture instead of calling Open-Meteo. |
+{% if warehouse == 'duckdb' -%}
+| `DUCKDB_PATH` | `data/warehouse.duckdb` | Python load and the dbt DuckDB profile. |
+{% else -%}
+| `WAREHOUSE_HOST` | `localhost` | Python load and the dbt Postgres profile. |
+| `WAREHOUSE_PORT` | `5436` | Host port for Postgres and the dbt profile. |
+| `WAREHOUSE_DB` | `warehouse` | Database name. |
+| `WAREHOUSE_USER` | `warehouse` | Database user. |
+| `WAREHOUSE_PASSWORD` | `warehouse` | Database password; override outside local development. |
+{% endif -%}
+{% if orchestrator == 'airflow' -%}
+| `AIRFLOW_PORT` | `8080` | Host port for the Airflow UI and API. |
+| `AIRFLOW_UID` | `50000` | Host user id used by the Airflow containers. |
+| `AIRFLOW_JWT_SECRET` | development value | Airflow API JWT secret; replace outside local development. |
+| `_AIRFLOW_WWW_USER_USERNAME` | `airflow` | Initial Airflow admin username. |
+| `_AIRFLOW_WWW_USER_PASSWORD` | `airflow` | Initial Airflow admin password. |
+| `AIRFLOW_DB`, `AIRFLOW_DB_USER`, `AIRFLOW_DB_PASSWORD` | `airflow` | Airflow metadata database settings. |
+| `PIPELINE_HOME` | `/opt/airflow/project` | Container path holding `dbt/` and `data/`. |
+{% endif -%}
+
+## Project layout
+
+```text
+{{ project_name }}/
+├── README.md
+├── Makefile
+├── pyproject.toml
+├── .copier-answers.yml
+├── .gitignore
+├── .pre-commit-config.yaml
+├── .sqlfluff
+{% if warehouse == 'postgres' or orchestrator == 'airflow' -%}
+├── docker-compose.yml
+├── .env.example
+{% endif -%}
+{% if orchestrator == 'airflow' -%}
+├── airflow/
+│   ├── Dockerfile
+│   └── dags/weather_pipeline.py
+{% endif -%}
+├── .github/workflows/ci.yml
+├── src/{{ package_name }}/
+│   ├── config.py
+│   ├── extract.py
+│   ├── load.py
+│   ├── warehouse.py
+│   ├── cli.py
+│   └── __main__.py
+├── dbt/
+│   ├── dbt_project.yml
+│   ├── profiles.yml
+│   ├── seeds/cities.csv
+│   ├── models/sources.yml
+│   ├── models/staging/stg_hourly_weather.sql
+│   ├── models/marts/daily_city_weather.sql
+│   ├── models/marts/city_extremes.sql
+│   └── tests/
+├── tests/
+│   ├── fixtures/open_meteo_sample.json
+│   ├── test_extract.py
+│   ├── test_load.py
+{% if orchestrator == 'airflow' -%}
+│   ├── test_cli.py
+│   └── test_dag.py
+{% else -%}
+│   └── test_cli.py
+{% endif -%}
+└── docs/ARCHITECTURE.md
+```
+
+`data/` is created on the first run and is git-ignored together with `*.duckdb`,
+`target/` and `logs/`.
+
+## Backfills
+
+`make backfill` uses the Open-Meteo archive API and an inclusive date range. It only
+extracts raw files; loading and modelling are separate so a failed backfill never
+leaves the warehouse half-updated:
+
+```bash
+make backfill START=2026-11-01 END=2026-11-07
+make load
+make build
+```
+
+The equivalent CLI command is:
+
+```bash
+.venv/bin/python -m {{ package_name }} backfill --start 2026-11-01 --end 2026-11-07
+```
+
+Every load is idempotent per city and UTC date: existing rows for that pair are
+deleted and reinserted in one transaction. Re-running a backfill or a daily run never
+duplicates rows. Future hours in a forecast payload are dropped by the staging model,
+not at extract time, so the raw JSON stays a faithful copy of the response.
+
+{% if orchestrator == 'airflow' -%}
+In Airflow the DAG reads `data_interval_start` and `data_interval_end` for backfill
+runs and uses the archive API for that date range. Normal scheduled runs use the
+forecast window.
+{% endif -%}
+
+## Swap in your own source
+
+The weather example is deliberately thin. To replace it:
+
+1. **Extraction** — edit `src/{{ package_name }}/extract.py`. Change `_request_params`
+   and `fetch_city` for your API, keep `validate_payload` failing before anything is
+   written, and keep `write_raw` writing one JSON file per entity per UTC date under
+   `data/raw/`. Update `src/{{ package_name }}/config.py` for the new endpoint, variables
+   and records.
+2. **Raw table** — update `CREATE_TABLE_SQL` in
+   `src/{{ package_name }}/warehouse.py` and `_rows` / `INSERT_SQL` in
+   `src/{{ package_name }}/load.py`. Keep the `%s`/`?` placeholder handling in
+   `warehouse.py` so the same load code works on DuckDB and Postgres.
+3. **Staging model** — update `dbt/models/staging/stg_hourly_weather.sql` and its
+   `.yml` file for the new columns, then adjust
+   `daily_city_weather` and `city_extremes` (or replace them with your own marts).
+   Keep the not-null/unique grain tests and source freshness.
+4. **Cities seed** — `dbt/seeds/cities.csv` and `CITIES` in `config.py` both come from
+   the `cities` Copier answer. If you change cities, update both, or re-render with
+   `copier update`.
+5. **Fixture** — replace `tests/fixtures/open_meteo_sample.json` so the offline tests
+   exercise the new source shape.
+
+## Data licence
+
+The sample uses [Open-Meteo](https://open-meteo.com/), which is free for
+non-commercial use under its own terms. For client or commercial deployments, use your
+own source or Open-Meteo's commercial plan, and review the data licence before
+shipping. The generated code and template are MIT licensed.
