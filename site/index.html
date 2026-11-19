@@ -288,6 +288,68 @@
     .links strong { display: block; margin-bottom: 4px; }
     .links small { color: var(--muted); font-size: 0.88rem; }
 
+    .demo { padding-top: 56px; }
+
+    .demo-media {
+      position: relative;
+      width: 100%;
+    }
+
+    .demo-video {
+      display: block;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--surface-2);
+      box-shadow: var(--shadow);
+      object-fit: cover;
+    }
+
+    .demo-overlay {
+      position: absolute;
+      padding: 10px 16px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface);
+      color: var(--text);
+      font: inherit;
+      font-weight: 650;
+      box-shadow: var(--shadow);
+      cursor: pointer;
+    }
+
+    .demo-overlay:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .demo-overlay:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 3px;
+    }
+
+    .demo-overlay[hidden] { display: none; }
+
+    .demo-unmute {
+      right: 16px;
+      bottom: 16px;
+    }
+
+    .demo-play {
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #ffffff;
+    }
+
+    .demo-play:hover {
+      background: var(--accent-strong);
+      color: #ffffff;
+    }
+
     footer {
       margin-top: 24px;
       padding: 28px 0 44px;
@@ -317,6 +379,19 @@
       </div>
     </div>
   </header>
+
+  <section id="demo" class="wrap demo">
+    <h2>See it run</h2>
+    <p class="section-lede">91 seconds, voiceover: render, make up, Airflow + Cosmos, dbt lineage, CI.</p>
+    <div class="demo-media">
+      <video id="demo-video" class="demo-video" autoplay muted playsinline controls preload="auto" poster="data-pipeline-template-demo-poster.jpg">
+        <source src="data-pipeline-template-demo.mp4" type="video/mp4">
+        <source src="https://github.com/willowvibe/data-pipeline-template/releases/download/v1.0.0/data-pipeline-template-demo.mp4" type="video/mp4">
+      </video>
+      <button type="button" id="demo-unmute" class="demo-overlay demo-unmute" hidden>Unmute</button>
+      <button type="button" id="demo-play" class="demo-overlay demo-play">Play demo</button>
+    </div>
+  </section>
 
   <main class="wrap">
     <section>
@@ -473,5 +548,69 @@
       <p>Built with Copier, dbt, DuckDB, Postgres, Airflow and astronomer-cosmos.</p>
     </div>
   </footer>
+
+  <script>
+    (function () {
+      var video = document.getElementById('demo-video');
+      var unmuteButton = document.getElementById('demo-unmute');
+      var playButton = document.getElementById('demo-play');
+      if (!video) return;
+
+      var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      function syncControls() {
+        if (video.paused) {
+          playButton.hidden = false;
+          unmuteButton.hidden = true;
+        } else {
+          playButton.hidden = true;
+          unmuteButton.hidden = !video.muted;
+        }
+      }
+
+      function playVideo() {
+        var attempt = video.play();
+        if (attempt && typeof attempt.catch === 'function') {
+          attempt.catch(function () {});
+        }
+      }
+
+      if (reduceMotion) {
+        video.removeAttribute('autoplay');
+        video.pause();
+      }
+
+      playButton.addEventListener('click', function () {
+        video.muted = false;
+        playVideo();
+      });
+
+      unmuteButton.addEventListener('click', function () {
+        video.muted = false;
+        syncControls();
+      });
+
+      video.addEventListener('play', syncControls);
+      video.addEventListener('pause', syncControls);
+      video.addEventListener('volumechange', syncControls);
+
+      if ('IntersectionObserver' in window) {
+        var observer = new IntersectionObserver(function (entries) {
+          entries.forEach(function (entry) {
+            if (entry.isIntersecting && entry.intersectionRatio >= 0.25) {
+              if (!reduceMotion) playVideo();
+            } else {
+              video.pause();
+            }
+          });
+        }, { threshold: 0.25 });
+        observer.observe(video);
+      } else if (!reduceMotion) {
+        playVideo();
+      }
+
+      syncControls();
+    })();
+  </script>
 </body>
 </html>

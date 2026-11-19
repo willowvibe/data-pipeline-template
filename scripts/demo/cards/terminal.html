@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>terminal</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --code: #101a2c;
+    --code-text: #e6edf8;
+    --muted: #9fb0cc;
+    --green: #7ee787;
+    --red: #ff7b72;
+    --accent-soft: #8cc4ff;
+    --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; }
+  body {
+    background: var(--code);
+    color: var(--code-text);
+    font-family: var(--font-mono);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  .term {
+    width: 1920px;
+    height: 1080px;
+    display: flex;
+    flex-direction: column;
+    background: var(--code);
+  }
+  .bar {
+    flex: none;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    padding: 0 28px;
+    background: #0b1322;
+    border-bottom: 1px solid rgba(230, 237, 248, 0.08);
+  }
+  .dots {
+    display: flex;
+    gap: 10px;
+    flex: none;
+  }
+  .dot {
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+  }
+  .dot.red { background: #ff5f57; }
+  .dot.yellow { background: #febc2e; }
+  .dot.green { background: #28c840; }
+  .title {
+    flex: 1;
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 19px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    text-align: center;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    padding-right: 84px;
+  }
+  .body {
+    flex: 1;
+    min-height: 0;
+    padding: 48px;
+    overflow: hidden;
+    font-size: 22px;
+    line-height: 1.45;
+  }
+  .line {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .line.command {
+    color: var(--code-text);
+  }
+  .prompt {
+    color: var(--accent-soft);
+    font-weight: 600;
+  }
+  .green { color: var(--green); }
+  .red { color: var(--red); }
+  .muted { color: var(--muted); }
+  .accent { color: var(--accent-soft); }
+  .caret {
+    display: inline-block;
+    width: 11px;
+    height: 1.18em;
+    margin-left: 2px;
+    vertical-align: text-bottom;
+    background: var(--accent-soft);
+    animation: blink 1s step-end infinite;
+  }
+  @keyframes blink {
+    0%, 49% { opacity: 1; }
+    50%, 100% { opacity: 0; }
+  }
+</style>
+</head>
+<body>
+  <div class="term">
+    <div class="bar">
+      <div class="dots">
+        <span class="dot red"></span>
+        <span class="dot yellow"></span>
+        <span class="dot green"></span>
+      </div>
+      <div class="title" id="term-title">terminal</div>
+    </div>
+    <div class="body" id="term-body"></div>
+  </div>
+<script>
+(function () {
+  var titleEl = document.getElementById('term-title');
+  var bodyEl = document.getElementById('term-body');
+  var TYPE_MS = 28;
+
+  function classify(text) {
+    if (
+      text.indexOf(' PASS ') !== -1 ||
+      text.indexOf('OK ') !== -1 ||
+      text.indexOf('Done. PASS') !== -1
+    ) {
+      return 'green';
+    }
+    if (text.indexOf('ERROR') !== -1 || text.indexOf('FAIL') !== -1) {
+      return 'red';
+    }
+    if (text.replace(/^\s+/, '').indexOf('INFO') === 0) {
+      return 'muted';
+    }
+    if (text.indexOf('create') !== -1) {
+      return 'accent';
+    }
+    return '';
+  }
+
+  function scrollToEnd() {
+    bodyEl.scrollTop = bodyEl.scrollHeight;
+  }
+
+  window.playTerminal = function (cfg) {
+    window.terminalDone = false;
+    var config = cfg || {};
+    var title = config.title || '';
+    var command = config.command || '';
+    var lines = Array.isArray(config.lines) ? config.lines : [];
+    var durationMs = Number(config.durationMs) || 0;
+
+    titleEl.textContent = title;
+    bodyEl.textContent = '';
+
+    var commandLine = document.createElement('div');
+    commandLine.className = 'line command';
+
+    var prompt = document.createElement('span');
+    prompt.className = 'prompt';
+    prompt.textContent = '$ ';
+
+    var typed = document.createElement('span');
+    typed.className = 'typed';
+
+    var caret = document.createElement('span');
+    caret.className = 'caret';
+
+    commandLine.appendChild(prompt);
+    commandLine.appendChild(typed);
+    commandLine.appendChild(caret);
+    bodyEl.appendChild(commandLine);
+
+    var clock = 0;
+    for (var i = 0; i < command.length; i += 1) {
+      clock += TYPE_MS;
+      (function (partial) {
+        window.setTimeout(function () {
+          typed.textContent = partial;
+          scrollToEnd();
+        }, clock);
+      })(command.slice(0, i + 1));
+    }
+
+    var remaining = Math.max(0, durationMs - clock);
+    var gap = lines.length > 0 ? remaining / lines.length : 0;
+
+    for (var j = 0; j < lines.length; j += 1) {
+      clock += gap;
+      (function (text) {
+        window.setTimeout(function () {
+          var line = document.createElement('div');
+          line.className = 'line ' + classify(text);
+          line.textContent = text;
+          bodyEl.appendChild(line);
+          scrollToEnd();
+        }, clock);
+      })(String(lines[j]));
+    }
+
+    window.setTimeout(function () {
+      caret.style.display = 'none';
+      window.terminalDone = true;
+    }, Math.ceil(clock) + 1);
+  };
+})();
+</script>
+</body>
+</html>

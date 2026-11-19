@@ -3,10 +3,9 @@
 **Start a client data project in a day:** ingestion, dbt models and tests, CI, Docker and
 optional Airflow, generated with one [Copier](https://copier.readthedocs.io/) command.
 
-<!-- The demo GIF lives at docs/assets/data-pipeline-template-demo.gif and is added with the
-     release media. Keep this commented until the file exists.
-![data-pipeline-template demo](docs/assets/data-pipeline-template-demo.gif)
--->
+[![data-pipeline-template demo: make up, Airflow + Cosmos, dbt lineage, CI](docs/assets/data-pipeline-template-demo.gif)](https://willowvibe.github.io/data-pipeline-template/#demo)
+
+Full 91-second demo with voiceover: [willowvibe.github.io/data-pipeline-template](https://willowvibe.github.io/data-pipeline-template/#demo)
 
 The template generates a small but complete weather pipeline. It fetches hourly weather for
 three cities from [Open-Meteo](https://open-meteo.com/), keeps the raw JSON for replay, loads

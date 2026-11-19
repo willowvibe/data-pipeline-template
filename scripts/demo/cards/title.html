@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>data-pipeline-template</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    --bg: #f5f7fb;
+    --surface: #ffffff;
+    --text: #162033;
+    --muted: #52607a;
+    --border: #d9e0ec;
+    --accent: #1668dc;
+    --accent-soft: #e4efff;
+    --code: #101a2c;
+    --code-text: #e6edf8;
+    --font-ui: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; }
+  body {
+    background:
+      radial-gradient(1100px 540px at 8% -12%, var(--accent-soft), transparent 70%),
+      var(--bg);
+    color: var(--text);
+    font-family: var(--font-ui);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  .wrap {
+    width: 1920px;
+    height: 1080px;
+    padding: 140px 160px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin: 0 0 38px;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 25px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .eyebrow::before {
+    content: "";
+    width: 54px;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--accent);
+  }
+  h1 {
+    margin: 0;
+    color: var(--text);
+    font-size: 124px;
+    font-weight: 600;
+    line-height: 1.03;
+    letter-spacing: -0.035em;
+  }
+  .subtitle {
+    margin: 42px 0 0;
+    color: var(--muted);
+    font-size: 46px;
+    font-weight: 400;
+    line-height: 1.3;
+    letter-spacing: -0.01em;
+  }
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin: 66px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .chips li {
+    padding: 14px 26px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 26px;
+    font-weight: 600;
+    line-height: 1.2;
+    box-shadow: 0 2px 10px rgba(22, 32, 51, 0.04);
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <p class="eyebrow">WillowVibe &middot; open-source template</p>
+    <h1>data-pipeline-template</h1>
+    <p class="subtitle">Start a client data project in a day</p>
+    <ul class="chips">
+      <li>Copier</li>
+      <li>dbt</li>
+      <li>DuckDB or Postgres</li>
+      <li>Airflow + Cosmos</li>
+      <li>GitHub Actions</li>
+    </ul>
+  </div>
+</body>
+</html>
