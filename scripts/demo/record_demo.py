@@ -252,14 +252,22 @@ def main() -> None:
                     f"{args.airflow_url}/dags/weather_pipeline", wait_until="load"
                 )
                 page.wait_for_load_state("networkidle")
-                page.get_by_role("button", name="Expand all task groups").click()
+
+                def expand_all() -> None:
+                    # Expansion state is shared by grid and graph; the button is
+                    # disabled once every group is already open.
+                    button = page.get_by_role("button", name="Expand all task groups")
+                    if button.is_enabled():
+                        button.click()
+
+                expand_all()
                 page.wait_for_timeout(int(holds[3] * 0.45 * 1000))
                 page.get_by_role("button", name="Show Graph (Press g)").click()
                 graph_offset["value"] = time.monotonic() - action_started
                 page.wait_for_timeout(1500)
                 page.mouse.click(1357, 571)
                 page.wait_for_timeout(1000)
-                page.get_by_role("button", name="Expand all task groups").click()
+                expand_all()
                 page.wait_for_timeout(1000)
                 page.locator(".react-flow__controls-fitview").click()
                 page.mouse.move(1900, 1000)

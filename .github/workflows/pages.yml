@@ -37,6 +37,15 @@ jobs:
       - name: Build the site
         run: bash scripts/build_site.sh
 
+      - name: Fetch demo video for inline playback
+        run: |
+          curl -fsSL --retry 3 -o _site/data-pipeline-template-demo.mp4 \
+            https://github.com/willowvibe/data-pipeline-template/releases/download/v1.0.0/data-pipeline-template-demo.mp4
+          test -s _site/data-pipeline-template-demo.mp4
+          curl -fsSL --retry 3 -o _site/data-pipeline-template-demo-poster.jpg \
+            https://github.com/willowvibe/data-pipeline-template/releases/download/v1.0.0/data-pipeline-template-demo-poster.jpg
+          test -s _site/data-pipeline-template-demo-poster.jpg
+
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 
