@@ -1,21 +1,19 @@
 #!/usr/bin/env python3
-"""Record the rag-docs-chatbot demo walkthrough at 1920x1080.
+"""Record the data-pipeline-template demo walkthrough at 1920x1080.
 
 Run this with the system python3: Playwright 1.60 and its Chromium build are
 installed there, and Playwright is intentionally not a repository dependency.
-Start the app first (the rate-limit scene expects RATE_LIMIT_ENABLED=1 and
-PER_IP_PER_HOUR=5), then point DEMO_URL or --url at it.
 
-Each scene holds for the larger of its base duration and its measured narration
-clip plus 0.5s, so the voice track and the visuals stay aligned. The timeline is
-written to /tmp/rag-demo-tts/holds.json for the assembly step.
+The recorder signs in to Airflow on a throwaway page first, then records the
+eight scenes. Each scene holds for the larger of its base duration and its
+measured narration clip plus 0.5s, so the voice track and the visuals stay
+aligned. The timeline is written to /tmp/dpt-demo-tts/holds.json for assembly.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import os
 import subprocess
 import sys
 import time
@@ -23,33 +21,31 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_OUT = ROOT / "video-work"
-DEFAULT_TTS = Path("/tmp/rag-demo-tts")
-DEFAULT_URL = "http://localhost:8017"
+DEFAULT_TTS = Path("/tmp/dpt-demo-tts")
+DEFAULT_AIRFLOW = "http://localhost:8080"
+DEFAULT_AIRFLOW_USER = "airflow"
+DEFAULT_AIRFLOW_PASSWORD = "airflow"
+DEFAULT_PAGES = "https://willowvibe.github.io/data-pipeline-template"
 CARD_DIR = Path(__file__).resolve().parent / "cards"
+LOG_DIR = Path(__file__).resolve().parent / "logs"
 
-BASE_HOLDS = [4.0, 10.0, 6.0, 8.0, 4.0, 9.0, 12.0, 11.0, 4.0]
+BASE_HOLDS = [4.0, 13.0, 16.0, 14.0, 9.0, 8.0, 9.0, 6.0]
 
 SCENES = [
     "title card",
-    "cited answer",
-    "citation click",
-    "reasoning answer",
-    "refusal",
-    "rate-limit UX",
-    "eval card",
-    "pipeline card",
+    "copier",
+    "make up",
+    "airflow grid and graph",
+    "dbt lineage",
+    "sample table",
+    "ci run",
     "end card",
 ]
 
-QUESTION_LENGTH = (
-    "What is the minimum length for a password used as a single-factor authenticator?"
+COPIER_COMMAND = (
+    "copier copy --defaults --data warehouse=duckdb --data orchestrator=none "
+    "gh:willowvibe/data-pipeline-template weather-pipeline"
 )
-QUESTION_MFA = (
-    "If a system asks for both a PIN and a password, has it achieved multifactor authentication?"
-)
-QUESTION_REFUSAL = "What is the capital of France?"
-QUESTION_VERIFIER = "What is a verifier?"
-QUESTION_CLAIMANT = "What is a claimant?"
 
 
 def probe_duration(path: Path) -> float:
@@ -105,12 +101,44 @@ def write_timeline(tts: Path, timeline: dict) -> None:
     (tts / "holds.json").write_text(json.dumps(timeline, indent=2) + "\n")
 
 
+def read_log(path: Path) -> list[str]:
+    if not path.exists():
+        raise SystemExit(f"missing log {path}")
+    return [line for line in path.read_text().splitlines() if line.strip()]
+
+
+def shorten(line: str, limit: int = 118) -> str:
+    if len(line) <= limit:
+        return line
+    return line[: limit - 1] + "\u2026"
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--url",
-        default=None,
-        help=f"running app URL (default: $DEMO_URL or {DEFAULT_URL})",
+        "--airflow-url",
+        default=DEFAULT_AIRFLOW,
+        help=f"Airflow base URL (default: {DEFAULT_AIRFLOW})",
+    )
+    parser.add_argument(
+        "--airflow-user",
+        default=DEFAULT_AIRFLOW_USER,
+        help=f"Airflow username (default: {DEFAULT_AIRFLOW_USER})",
+    )
+    parser.add_argument(
+        "--airflow-password",
+        default=DEFAULT_AIRFLOW_PASSWORD,
+        help=f"Airflow password (default: {DEFAULT_AIRFLOW_PASSWORD})",
+    )
+    parser.add_argument(
+        "--ci-url",
+        required=True,
+        help="GitHub Actions run URL to show in the CI scene",
+    )
+    parser.add_argument(
+        "--pages-url",
+        default=DEFAULT_PAGES,
+        help=f"generated docs base URL (default: {DEFAULT_PAGES})",
     )
     parser.add_argument(
         "--out",
@@ -122,24 +150,26 @@ def parse_args() -> argparse.Namespace:
         "--tts",
         type=Path,
         default=DEFAULT_TTS,
-        help=f"directory with 00.mp3..08.mp3 (default: {DEFAULT_TTS})",
+        help=f"directory with 00.mp3..07.mp3 (default: {DEFAULT_TTS})",
     )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    url = args.url or os.environ.get("DEMO_URL", DEFAULT_URL)
     out = args.out
     tts = args.tts
     out.mkdir(parents=True, exist_ok=True)
 
     cards = {}
-    for name in ("title", "eval", "pipeline", "end"):
+    for name in ("title", "terminal", "end"):
         path = CARD_DIR / f"{name}.html"
         if not path.exists():
             raise SystemExit(f"missing card {path}")
         cards[name] = path.resolve().as_uri()
+
+    copier_lines = read_log(LOG_DIR / "copier.log")
+    make_lines = [shorten(line) for line in read_log(LOG_DIR / "make-up.log")]
 
     timeline = build_timeline(tts)
     holds = timeline["holds"]
@@ -153,8 +183,10 @@ def main() -> None:
 
     from playwright.sync_api import Error, sync_playwright
 
-    video_path = None
+    main_video = None
     poster_at = None
+    graph_offset: dict[str, float] = {}
+
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch()
         context = browser.new_context(
@@ -162,147 +194,149 @@ def main() -> None:
             record_video_dir=str(out),
             record_video_size={"width": 1920, "height": 1080},
         )
-        page = context.new_page()
-        page.set_default_timeout(90000)
-        page.set_default_navigation_timeout(30000)
-
-        def answer_count() -> int:
-            return page.locator(".message.answer").count()
-
-        def bring_latest_into_view() -> None:
-            page.evaluate(
-                """() => {
-                    const transcript = document.querySelector('#transcript');
-                    if (transcript) transcript.scrollTop = transcript.scrollHeight;
-                    // Zoomed page is taller than the frame: keep the input,
-                    // quota line and newest answer in view.
-                    window.scrollTo(0, document.documentElement.scrollHeight);
-                }"""
-            )
-
-        def reveal_quota() -> None:
-            page.evaluate(
-                """() => {
-                    const quota = document.querySelector('#quota');
-                    if (quota) quota.scrollIntoView({block: 'center'});
-                }"""
-            )
-
-        def ask(question: str, type_delay: float | None = None) -> None:
-            before = answer_count()
-            box = page.locator("#question")
-            box.click()
-            if type_delay is None:
-                box.fill(question)
-            else:
-                box.press_sequentially(question, delay=type_delay)
-            page.locator("#send").click()
-            page.wait_for_function(
-                """([count]) => {
-                    const answers = document.querySelectorAll('.message.answer');
-                    const status = document.querySelector('#status');
-                    return answers.length > count &&
-                        (status?.textContent || '').startsWith('Answer ready');
-                }""",
-                arg=[before],
-            )
-            bring_latest_into_view()
-
-        def click_first_citation() -> None:
-            button = page.locator(".message.answer").last.locator("button.citation").first
-            if button.count() == 0:
-                raise SystemExit("latest answer has no citation button")
-            button.click()
-            page.wait_for_timeout(900)
-            focused = page.evaluate(
-                """() => {
-                    const active = document.querySelector('.source-card.is-active');
-                    const element = document.activeElement;
-                    return Boolean(
-                        active && element && element.classList.contains('source-card')
-                    );
-                }"""
-            )
-            if not focused:
-                raise SystemExit("citation click did not highlight and focus its source card")
-
-        def lock_and_show_quota() -> None:
-            ask(QUESTION_VERIFIER)
-            ask(QUESTION_CLAIMANT)
-            page.wait_for_function(
-                """() => {
-                    const input = document.querySelector('#question');
-                    const quota = document.querySelector('#quota');
-                    return Boolean(
-                        input && input.disabled && quota && !quota.hidden &&
-                        quota.textContent.trim().length > 0
-                    );
-                }"""
-            )
-            reveal_quota()
-            page.wait_for_timeout(500)
-
-        def scene(index: int, action) -> float:
-            started = time.monotonic()
-            action()
-            elapsed = time.monotonic() - started
-            hold = holds[index]
-            print(f"scene {index}: actions {elapsed:.2f}s / hold {hold:.2f}s", file=sys.stderr)
-            if elapsed > hold:
-                raise SystemExit(
-                    f"scene {index} took {elapsed:.2f}s, longer than its "
-                    f"{hold:.2f}s hold; narration would desync"
-                )
-            remaining = hold - elapsed
-            if remaining > 0:
-                page.wait_for_timeout(int(remaining * 1000))
-            return elapsed
-
         try:
-            scene(0, lambda: page.goto(cards["title"], wait_until="load"))
-            def open_app_and_ask() -> None:
-                # Scene 0 left the title card loaded; return to the app first.
-                page.goto(url, wait_until="load")
-                # 1:1 app text is unreadable once the video is embedded or
-                # shrunk to the README GIF; zoom the app (not the cards).
-                page.evaluate("document.documentElement.style.zoom = '1.35'")
-                ask(QUESTION_LENGTH, type_delay=35)
-
-            answer_elapsed = scene(1, open_app_and_ask)
-            scene(2, click_first_citation)
-            scene(3, lambda: ask(QUESTION_MFA))
-            scene(4, lambda: ask(QUESTION_REFUSAL))
-            scene(5, lock_and_show_quota)
-            scene(6, lambda: page.goto(cards["eval"], wait_until="load"))
-            scene(7, lambda: page.goto(cards["pipeline"], wait_until="load"))
-            scene(8, lambda: page.goto(cards["end"], wait_until="load"))
-
-            poster_at = starts[1] + min(
-                answer_elapsed + 0.5, max(0.0, holds[1] - 0.25)
+            login = context.new_page()
+            login.set_default_timeout(90000)
+            login.set_default_navigation_timeout(45000)
+            login.goto(
+                f"{args.airflow_url}/auth/login/?next=%2Fdags%2Fweather_pipeline",
+                wait_until="load",
             )
+            login.get_by_label("Username:").fill(args.airflow_user)
+            login.get_by_label("Password:").fill(args.airflow_password)
+            login.get_by_role("button", name="Sign In").click()
+            login.wait_for_url("**/dags/weather_pipeline**")
+            login.close()
 
-            video = page.video
-            if video is not None:
-                try:
-                    video_path = video.path()
-                except Error:
-                    video_path = None
+            page = context.new_page()
+            page.set_default_timeout(90000)
+            page.set_default_navigation_timeout(45000)
+
+            def scene(index: int, action) -> float:
+                started = time.monotonic()
+                action()
+                elapsed = time.monotonic() - started
+                hold = holds[index]
+                print(
+                    f"scene {index}: actions {elapsed:.2f}s / hold {hold:.2f}s",
+                    file=sys.stderr,
+                )
+                if elapsed > hold:
+                    raise SystemExit(
+                        f"scene {index} took {elapsed:.2f}s, longer than its "
+                        f"{hold:.2f}s hold; narration would desync"
+                    )
+                remaining = hold - elapsed
+                if remaining > 0:
+                    page.wait_for_timeout(int(remaining * 1000))
+                return elapsed
+
+            def play_terminal(
+                title: str, command: str, lines: list[str], index: int
+            ) -> None:
+                page.goto(cards["terminal"], wait_until="load")
+                duration_ms = int((holds[index] - 1.2) * 1000)
+                page.evaluate(
+                    "cfg => playTerminal(cfg)",
+                    {
+                        "title": title,
+                        "command": command,
+                        "lines": lines,
+                        "durationMs": duration_ms,
+                    },
+                )
+
+            def airflow_scene() -> None:
+                action_started = time.monotonic()
+                page.goto(
+                    f"{args.airflow_url}/dags/weather_pipeline", wait_until="load"
+                )
+                page.wait_for_load_state("networkidle")
+                page.get_by_role("button", name="Expand all task groups").click()
+                page.wait_for_timeout(int(holds[3] * 0.45 * 1000))
+                page.get_by_role("button", name="Show Graph (Press g)").click()
+                graph_offset["value"] = time.monotonic() - action_started
+                page.wait_for_timeout(1500)
+                page.mouse.click(1357, 571)
+                page.wait_for_timeout(1000)
+                page.get_by_role("button", name="Expand all task groups").click()
+                page.wait_for_timeout(1000)
+                page.locator(".react-flow__controls-fitview").click()
+                page.mouse.move(1900, 1000)
+
+            def dbt_scene() -> None:
+                page.goto(
+                    f"{args.pages_url}/dbt/index.html#!/overview?g_v=1",
+                    wait_until="networkidle",
+                )
+                page.wait_for_timeout(3000)
+
+            def sample_scene() -> None:
+                page.goto(f"{args.pages_url}/sample.html", wait_until="load")
+                page.evaluate("document.documentElement.style.zoom = '1.35'")
+
+            def ci_scene() -> None:
+                page.goto(args.ci_url, wait_until="networkidle")
+                page.evaluate("document.documentElement.style.zoom = '1.25'")
+                page.evaluate("window.scrollTo(0, 0)")
+
+            scene(0, lambda: page.goto(cards["title"], wait_until="load"))
+            scene(
+                1,
+                lambda: play_terminal(
+                    "weather-pipeline \u2014 copier",
+                    COPIER_COMMAND,
+                    copier_lines,
+                    1,
+                ),
+            )
+            scene(
+                2,
+                lambda: play_terminal(
+                    "weather-pipeline \u2014 make up",
+                    "make up",
+                    make_lines,
+                    2,
+                ),
+            )
+            scene(3, airflow_scene)
+            scene(4, dbt_scene)
+            scene(5, sample_scene)
+            scene(6, ci_scene)
+            scene(7, lambda: page.goto(cards["end"], wait_until="load"))
+
+            offset = graph_offset.get("value", holds[3] * 0.5)
+            poster_at = starts[3] + offset + max(0.0, holds[3] - offset) / 2.0
+
+            main_video = page.video
         finally:
             context.close()
             browser.close()
 
-    if video_path is None:
-        candidates = sorted(out.glob("page@*.webm"), key=lambda path: path.stat().st_mtime)
+    if poster_at is None:
+        raise SystemExit("recording finished without a poster timestamp")
+
+    main_path = None
+    if main_video is not None:
+        try:
+            main_path = Path(main_video.path())
+        except Error:
+            main_path = None
+
+    candidates = sorted(out.glob("page@*.webm"), key=lambda path: path.stat().st_mtime)
+    if main_path is None:
         if not candidates:
             raise SystemExit("Playwright did not produce a video")
-        raw = candidates[-1]
-    else:
-        raw = Path(video_path)
+        main_path = candidates[-1]
 
-    target = out / "rag-raw.webm"
+    for candidate in candidates:
+        if candidate.resolve() != main_path.resolve():
+            candidate.unlink()
+
+    target = out / "dpt-raw.webm"
     if target.exists():
         target.unlink()
-    raw.replace(target)
+    main_path.replace(target)
 
     recorded = probe_duration(target)
     if abs(recorded - timeline["total"]) > 0.5:

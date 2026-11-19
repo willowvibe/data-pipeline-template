@@ -2,27 +2,29 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>rag-docs-chatbot</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+<title>data-pipeline-template</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <style>
   :root {
-    --paper: #EEF1F4;
-    --surface: #FFFFFF;
-    --ink: #1B2333;
-    --muted: #5B6676;
-    --rule: #D5DBE3;
-    --blue: #1F4E8C;
-    --blue-soft: #E3EBF6;
-    --highlight: #FFE36E;
+    --bg: #f5f7fb;
+    --surface: #ffffff;
+    --text: #162033;
+    --muted: #52607a;
+    --border: #d9e0ec;
+    --accent: #1668dc;
+    --accent-soft: #e4efff;
+    --code: #101a2c;
+    --code-text: #e6edf8;
     --font-ui: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    --font-serif: "Source Serif 4", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
     --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; }
   body {
-    background: var(--paper);
-    color: var(--ink);
+    background:
+      radial-gradient(1000px 480px at 92% 108%, var(--accent-soft), transparent 70%),
+      var(--bg);
+    color: var(--text);
     font-family: var(--font-ui);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
@@ -30,100 +32,86 @@
   .wrap {
     width: 1920px;
     height: 1080px;
-    padding: 120px 150px;
+    padding: 130px 160px;
     display: flex;
     flex-direction: column;
     justify-content: center;
   }
   .eyebrow {
-    margin: 0 0 28px;
-    color: var(--blue);
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin: 0 0 34px;
+    color: var(--muted);
     font-family: var(--font-mono);
-    font-size: 26px;
+    font-size: 25px;
     font-weight: 500;
-    letter-spacing: 0.14em;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
+  }
+  .eyebrow::before {
+    content: "";
+    width: 54px;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--accent);
   }
   h1 {
     margin: 0;
-    color: var(--ink);
-    font-family: var(--font-serif);
-    font-size: 138px;
+    color: var(--text);
+    font-size: 118px;
     font-weight: 600;
-    line-height: 1;
-    letter-spacing: -0.03em;
+    line-height: 1.05;
+    letter-spacing: -0.035em;
   }
-  .live {
+  .code {
     margin: 54px 0 0;
-    color: var(--blue);
+    padding: 36px 44px;
+    border-radius: 18px;
+    background: var(--code);
+    color: var(--code-text);
     font-family: var(--font-mono);
-    font-size: 52px;
-    font-weight: 500;
-    line-height: 1.2;
-    letter-spacing: -0.02em;
-  }
-  .source {
-    display: flex;
-    gap: 20px;
-    align-items: baseline;
-    margin: 22px 0 0;
-    color: var(--ink);
-    font-family: var(--font-mono);
-    font-size: 34px;
+    font-size: 31px;
     font-weight: 400;
-    line-height: 1.3;
+    line-height: 1.45;
+    white-space: nowrap;
+    box-shadow: 0 24px 60px rgba(16, 26, 44, 0.22);
   }
-  .source .label {
-    flex: none;
-    padding: 6px 12px;
-    border: 1px solid var(--rule);
-    border-radius: 6px;
-    background: var(--surface);
-    color: var(--muted);
-    font-size: 18px;
-    font-weight: 500;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
+  .code .prompt {
+    color: #8cc4ff;
   }
-  .rule {
-    width: 100%;
-    height: 1px;
-    margin: 62px 0 30px;
-    background: var(--rule);
+  .links {
+    margin: 46px 0 0;
+  }
+  .links p {
+    margin: 0 0 14px;
+    color: var(--accent);
+    font-family: var(--font-mono);
+    font-size: 31px;
+    line-height: 1.35;
+    letter-spacing: -0.01em;
   }
   .footer {
-    display: flex;
-    gap: 28px;
-    align-items: baseline;
-    justify-content: space-between;
-    margin: 0;
-    color: var(--muted);
-    font-size: 27px;
-    line-height: 1.4;
-  }
-  .footer .credit {
-    flex: none;
+    margin: 70px 0 0;
+    padding-top: 26px;
+    border-top: 1px solid var(--border);
     color: var(--muted);
     font-family: var(--font-mono);
-    font-size: 24px;
-    letter-spacing: 0.03em;
+    font-size: 22px;
+    letter-spacing: 0.04em;
   }
 </style>
 </head>
 <body>
   <div class="wrap">
-    <p class="eyebrow">Live demo</p>
-    <h1>Try it live</h1>
-    <p class="live">https://rag-docs-chatbot-three.vercel.app</p>
-    <p class="source">
-      <span class="label">Source</span>
-      <span>github.com/willowvibe/rag-docs-chatbot</span>
-    </p>
-    <div class="rule"></div>
-    <p class="footer">
-      <span>Free open model &middot; 8 questions per visitor per rolling hour &middot; MIT licensed</span>
-      <span class="credit">Built by WillowVibe</span>
-    </p>
+    <p class="eyebrow">WillowVibe &middot; open-source template</p>
+    <h1>Generate your own</h1>
+    <pre class="code"><span class="prompt">$ </span>copier copy gh:willowvibe/data-pipeline-template my-pipeline</pre>
+    <div class="links">
+      <p>github.com/willowvibe/data-pipeline-template</p>
+      <p>willowvibe.github.io/data-pipeline-template</p>
+    </div>
+    <p class="footer">MIT &middot; WillowVibe</p>
   </div>
 </body>
 </html>
