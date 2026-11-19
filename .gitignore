@@ -1,0 +1,5 @@
+.venv/
+.cheapag/
+AGENTS.md
+__pycache__/
+_site/
