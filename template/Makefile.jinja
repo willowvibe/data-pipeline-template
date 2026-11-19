@@ -4,6 +4,15 @@ COMPOSE ?= $(shell docker compose version >/dev/null 2>&1 && echo "docker compos
 PYTHON ?= .venv/bin/python
 DBT ?= $(PYTHON) -m dbt.cli.main
 DBT_FLAGS ?= --project-dir dbt --profiles-dir dbt
+{% if warehouse == 'postgres' %}
+-include .env
+WAREHOUSE_HOST ?= localhost
+WAREHOUSE_PORT ?= 5436
+WAREHOUSE_DB ?= warehouse
+WAREHOUSE_USER ?= warehouse
+WAREHOUSE_PASSWORD ?= warehouse
+export WAREHOUSE_HOST WAREHOUSE_PORT WAREHOUSE_DB WAREHOUSE_USER WAREHOUSE_PASSWORD
+{% endif %}
 
 .PHONY: install extract load run backfill build test lint ci up down clean
 
@@ -45,7 +54,7 @@ up:
 up:
 	$(COMPOSE) up -d
 	@echo "Waiting for warehouse-db to become healthy..."
-	@until $(COMPOSE) exec -T warehouse-db pg_isready -U $${WAREHOUSE_USER:-warehouse} -d $${WAREHOUSE_DB:-warehouse} >/dev/null 2>&1; do sleep 1; done
+	@until $(COMPOSE) exec -T warehouse-db pg_isready -U $(WAREHOUSE_USER) -d $(WAREHOUSE_DB) >/dev/null 2>&1; do sleep 1; done
 	$(MAKE) run build
 {% else %}
 up: run build
@@ -53,7 +62,7 @@ up: run build
 
 {% if warehouse == 'postgres' or orchestrator == 'airflow' %}
 down:
-	$(COMPOSE) down
+	$(COMPOSE) down --remove-orphans $(if $(filter 1,$(VOLUMES)),--volumes,)
 {% else %}
 down:
 	@echo "Nothing to stop for DuckDB; run 'make clean' to remove local data."

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .config import DATA_DIR
-from .warehouse import PARAM, begin, connect, ensure_schema
+from .warehouse import PARAM, begin, connect, ensure_schema, execute_many
 
 LOGGER = logging.getLogger(__name__)
 
@@ -64,7 +64,7 @@ def load_file(conn, path: Path) -> int:
     begin(conn)
     try:
         conn.execute(DELETE_SQL, (city, day))
-        conn.executemany(INSERT_SQL, rows)
+        execute_many(conn, INSERT_SQL, rows)
         conn.commit()
     except Exception:
         conn.rollback()

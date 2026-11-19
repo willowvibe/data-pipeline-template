@@ -20,6 +20,9 @@ def isolated_data(tmp_path, monkeypatch):
 {% else %}
     if not os.environ.get("WAREHOUSE_HOST"):
         pytest.skip("Postgres CLI test needs WAREHOUSE_HOST")
+    with warehouse.connect() as conn:
+        conn.execute("DROP SCHEMA IF EXISTS raw CASCADE")
+        conn.commit()
 {% endif %}
     return data_dir
 
