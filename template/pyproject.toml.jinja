@@ -9,13 +9,16 @@ description = "Weather data pipeline generated with data-pipeline-template."
 requires-python = ">={{ python_version }}"
 authors = [{ name = "{{ author_name }}" }]
 dependencies = [
-    "httpx~=0.28",
-    "tenacity~=9.2",
+    "dbt-core~=1.12",
 {% if warehouse == 'duckdb' %}
+    "dbt-duckdb~=1.11",
     "duckdb~=1.5",
 {% else %}
+    "dbt-postgres~=1.11",
     "psycopg[binary]~=3.3",
 {% endif %}
+    "httpx~=0.28",
+    "tenacity~=9.2",
 ]
 
 [project.optional-dependencies]

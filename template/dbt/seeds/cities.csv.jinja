@@ -1,0 +1,4 @@
+name,latitude,longitude
+{% for city in cities -%}
+{{ city.name }},{{ city.latitude }},{{ city.longitude }}
+{% endfor -%}

@@ -1,0 +1,23 @@
+{% if warehouse == 'duckdb' -%}
+{{ package_name }}:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: "{% raw %}{{ env_var('DUCKDB_PATH', 'data/warehouse.duckdb') }}{% endraw %}"
+      schema: main
+      threads: 1
+{% else -%}
+{{ package_name }}:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: "{% raw %}{{ env_var('WAREHOUSE_HOST', 'localhost') }}{% endraw %}"
+      port: {% raw %}{{ env_var('WAREHOUSE_PORT', '5436') | int }}{% endraw %}
+      user: "{% raw %}{{ env_var('WAREHOUSE_USER', 'warehouse') }}{% endraw %}"
+      password: "{% raw %}{{ env_var('WAREHOUSE_PASSWORD', 'warehouse') }}{% endraw %}"
+      dbname: "{% raw %}{{ env_var('WAREHOUSE_DB', 'warehouse') }}{% endraw %}"
+      schema: main
+      threads: 4
+{% endif -%}

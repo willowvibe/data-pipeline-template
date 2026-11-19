@@ -2,6 +2,8 @@
 
 COMPOSE ?= $(shell docker compose version >/dev/null 2>&1 && echo "docker compose" || echo docker-compose)
 PYTHON ?= .venv/bin/python
+DBT ?= $(PYTHON) -m dbt.cli.main
+DBT_FLAGS ?= --project-dir dbt --profiles-dir dbt
 
 .PHONY: install extract load run backfill build test lint ci up down clean
 
@@ -22,7 +24,9 @@ backfill:
 	$(PYTHON) -m {{ package_name }} backfill --start $(START) --end $(END)
 
 build:
-	@echo "dbt build and source freshness are wired in step 5."
+	$(DBT) seed $(DBT_FLAGS)
+	$(DBT) build $(DBT_FLAGS)
+	$(DBT) source freshness $(DBT_FLAGS)
 
 test:
 	PIPELINE_OFFLINE=1 $(PYTHON) -m pytest -q
@@ -30,7 +34,9 @@ test:
 lint:
 	@echo "ruff and sqlfluff are wired in step 7."
 
-ci: lint test build
+ci: lint test
+	PIPELINE_OFFLINE=1 $(PYTHON) -m {{ package_name }} run
+	$(MAKE) build
 
 {% if orchestrator == 'airflow' %}
 up:

@@ -1,0 +1,56 @@
+version: 2
+
+models:
+  - name: stg_hourly_weather
+    description: Clean hourly weather with future rows removed and one row per city and hour.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - city
+              - observed_at
+    columns:
+      - name: city
+        description: City name from the pipeline configuration.
+        data_tests:
+          - not_null
+      - name: observed_at
+        description: UTC hour the observation applies to.
+        data_tests:
+          - not_null
+      - name: temperature_c
+        description: Air temperature at 2 m in degrees Celsius.
+        data_tests:
+          - not_null
+          - accepted_range:
+              arguments:
+                min: -60
+                max: 60
+      - name: humidity_pct
+        description: Relative humidity at 2 m as a percentage.
+        data_tests:
+          - not_null
+          - accepted_range:
+              arguments:
+                min: 0
+                max: 100
+      - name: precipitation_mm
+        description: Precipitation during the hour in millimetres.
+        data_tests:
+          - not_null
+          - accepted_range:
+              arguments:
+                min: 0
+                max: 1000
+      - name: wind_kmh
+        description: Wind speed at 10 m in kilometres per hour.
+        data_tests:
+          - not_null
+          - accepted_range:
+              arguments:
+                min: 0
+                max: 500
+      - name: loaded_at
+        description: UTC timestamp when the load step wrote the row.
+        data_tests:
+          - not_null
