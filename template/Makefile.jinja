@@ -41,7 +41,9 @@ test:
 	PIPELINE_OFFLINE=1 $(PYTHON) -m pytest -q
 
 lint:
-	@echo "ruff and sqlfluff are wired in step 7."
+	$(PYTHON) -m ruff check .
+	$(PYTHON) -m ruff format --check .
+	$(PYTHON) -m sqlfluff lint dbt/models
 
 ci: lint test
 	PIPELINE_OFFLINE=1 $(PYTHON) -m {{ package_name }} run

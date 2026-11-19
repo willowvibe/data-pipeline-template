@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+{% if warehouse == 'postgres' -%}
 import os
 
+{% endif -%}
 import pytest
 
 from {{ package_name }} import cli, extract, load, warehouse
@@ -41,9 +43,7 @@ def test_run_offline_writes_raw_files_and_loads_rows(isolated_data):
 
 def test_backfill_rejects_start_after_end(capsys):
     with pytest.raises(SystemExit) as error:
-        cli.main(
-            ["backfill", "--start", "2026-01-05", "--end", "2026-01-01", "--offline"]
-        )
+        cli.main(["backfill", "--start", "2026-01-05", "--end", "2026-01-01", "--offline"])
 
     assert error.value.code != 0
     message = capsys.readouterr().err.lower()

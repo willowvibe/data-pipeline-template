@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 import pytest
@@ -84,7 +84,7 @@ def test_extract_all_offline_shifts_timestamps_to_today(monkeypatch, cities, tmp
     assert result.failed == []
     assert len(result.written) == 3 * len(cities)
     last_day = max(path.stem for path in result.written)
-    assert last_day == datetime.now(timezone.utc).date().isoformat()
+    assert last_day == datetime.now(UTC).date().isoformat()
 
 
 def test_fetch_city_retries_on_503(monkeypatch, sample_data):

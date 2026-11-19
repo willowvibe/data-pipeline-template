@@ -16,15 +16,15 @@ ranked as (
         total_precipitation_mm,
         row_number() over (
             partition by city
-            order by max_temperature_c desc, observation_date
+            order by max_temperature_c desc, observation_date asc
         ) as hottest_rank,
         row_number() over (
             partition by city
-            order by min_temperature_c asc, observation_date
+            order by min_temperature_c asc, observation_date asc
         ) as coldest_rank,
         row_number() over (
             partition by city
-            order by total_precipitation_mm desc, observation_date
+            order by total_precipitation_mm desc, observation_date asc
         ) as wettest_rank
     from daily
 
@@ -72,5 +72,5 @@ select
     wettest.wettest_date,
     wettest.wettest_precipitation_mm
 from hottest
-join coldest on hottest.city = coldest.city
-join wettest on hottest.city = wettest.city
+inner join coldest on hottest.city = coldest.city
+inner join wettest on hottest.city = wettest.city

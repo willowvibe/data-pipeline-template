@@ -47,6 +47,8 @@ def test_render_shape(copie, warehouse, orchestrator):
     assert (project / "README.md").is_file()
 
     for path in _text_files(project):
+        if "dbt" in path.relative_to(project).parts:
+            continue  # dbt models, macros and profiles legitimately contain Jinja
         text = path.read_text(encoding="utf-8")
         assert "{{" not in text, f"unrendered '{{{{' left in {path}"
         assert "{%" not in text, f"unrendered '{{%' left in {path}"

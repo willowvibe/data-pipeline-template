@@ -8,7 +8,7 @@ import logging
 import re
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -168,7 +168,7 @@ def _shift_to_today(payload: dict[str, Any]) -> dict[str, Any]:
         return shifted
 
     last_day = date.fromisoformat(str(times[-1])[:10])
-    delta = datetime.now(timezone.utc).date() - last_day
+    delta = datetime.now(UTC).date() - last_day
     if not delta:
         return shifted
 
@@ -223,7 +223,7 @@ def extract_all(
             else:
                 payload = fetch_city(city, start=start, end=end)
             result.written.extend(write_raw(city, payload, DATA_DIR))
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001 - one bad city must not stop the rest
             LOGGER.warning("extract failed for %s: %s", city.name, error)
             result.failed.append(city.name)
     return result
