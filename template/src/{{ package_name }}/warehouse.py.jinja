@@ -1,0 +1,88 @@
+"""Database connection and schema helpers for the raw warehouse layer."""
+
+from __future__ import annotations
+
+{% if warehouse == 'duckdb' -%}
+from collections.abc import Iterator
+from contextlib import contextmanager
+from pathlib import Path
+
+import duckdb
+
+from .config import DUCKDB_PATH
+
+PARAM = "?"
+{% else -%}
+from collections.abc import Iterator
+from contextlib import contextmanager
+
+import psycopg
+
+from .config import (
+    WAREHOUSE_DB,
+    WAREHOUSE_HOST,
+    WAREHOUSE_PASSWORD,
+    WAREHOUSE_PORT,
+    WAREHOUSE_USER,
+)
+
+PARAM = "%s"
+{% endif %}
+
+CREATE_SCHEMA_SQL = "CREATE SCHEMA IF NOT EXISTS raw"
+
+CREATE_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS raw.hourly_weather (
+    city TEXT,
+    observed_at TIMESTAMP,
+    temperature_c DOUBLE PRECISION,
+    humidity_pct DOUBLE PRECISION,
+    precipitation_mm DOUBLE PRECISION,
+    wind_kmh DOUBLE PRECISION,
+    loaded_at TIMESTAMP
+)
+"""
+
+{% if warehouse == 'duckdb' -%}
+@contextmanager
+def connect() -> Iterator[duckdb.DuckDBPyConnection]:
+    """Open the DuckDB warehouse, creating its parent directory when needed."""
+    path = Path(DUCKDB_PATH)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    connection = duckdb.connect(str(path))
+    try:
+        yield connection
+    finally:
+        connection.close()
+
+
+def begin(conn) -> None:
+    """Start an explicit transaction; DuckDB autocommits every statement."""
+    conn.execute("BEGIN")
+{% else -%}
+@contextmanager
+def connect() -> Iterator[psycopg.Connection]:
+    """Open a Postgres connection using the WAREHOUSE_* environment variables."""
+    connection = psycopg.connect(
+        host=WAREHOUSE_HOST,
+        port=WAREHOUSE_PORT,
+        dbname=WAREHOUSE_DB,
+        user=WAREHOUSE_USER,
+        password=WAREHOUSE_PASSWORD,
+    )
+    try:
+        yield connection
+    finally:
+        connection.close()
+
+
+def begin(conn) -> None:
+    """Start a transaction; psycopg begins one before the first statement."""
+    return None
+{% endif %}
+
+def ensure_schema(conn) -> None:
+    """Create the raw schema and hourly table when they do not exist yet."""
+    conn.execute(CREATE_SCHEMA_SQL)
+    conn.execute(CREATE_TABLE_SQL)
+    conn.commit()

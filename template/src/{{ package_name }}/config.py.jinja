@@ -19,6 +19,15 @@ HOURLY_VARS = [
 DATA_DIR = Path(os.environ.get("PIPELINE_DATA_DIR", "./data"))
 OFFLINE = os.environ.get("PIPELINE_OFFLINE") == "1"
 
+{% if warehouse == 'duckdb' -%}
+DUCKDB_PATH = Path(os.environ.get("DUCKDB_PATH", str(DATA_DIR / "warehouse.duckdb")))
+{% else -%}
+WAREHOUSE_HOST = os.environ.get("WAREHOUSE_HOST", "localhost")
+WAREHOUSE_PORT = int(os.environ.get("WAREHOUSE_PORT", "5436"))
+WAREHOUSE_DB = os.environ.get("WAREHOUSE_DB", "warehouse")
+WAREHOUSE_USER = os.environ.get("WAREHOUSE_USER", "warehouse")
+WAREHOUSE_PASSWORD = os.environ.get("WAREHOUSE_PASSWORD", "warehouse")
+{% endif %}
 
 @dataclass(frozen=True)
 class City:

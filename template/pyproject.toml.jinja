@@ -11,6 +11,11 @@ authors = [{ name = "{{ author_name }}" }]
 dependencies = [
     "httpx~=0.28",
     "tenacity~=9.2",
+{% if warehouse == 'duckdb' %}
+    "duckdb~=1.5",
+{% else %}
+    "psycopg[binary]~=3.3",
+{% endif %}
 ]
 
 [project.optional-dependencies]

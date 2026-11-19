@@ -192,7 +192,7 @@ data-pipeline-template/
 ## Pinned versions (checked on PyPI 2026-11-19)
 
 copier 9.19.1 · apache-airflow 3.4.0 · astronomer-cosmos 1.16.0 · dbt-core 1.12.7 · dbt-duckdb 1.11.1 ·
-dbt-postgres 1.11.0 · duckdb 2.0.0 · psycopg 3.3.9 · httpx 0.28.1 · tenacity 9.2.1 · pytest-copie 0.3.1 ·
+dbt-postgres 1.11.0 · duckdb ~=1.5 (dbt-duckdb 1.11 allows ≥1.0 but its own extra pins 1.5.5; 2.0 untested) · psycopg 3.3.9 · httpx 0.28.1 · tenacity 9.2.1 · pytest-copie 0.3.1 ·
 ruff 0.17.5 · sqlfluff 4.5.0 · Python 3.12. Pin with `~=` (compatible release) in generated projects.
 
 ## Risks
