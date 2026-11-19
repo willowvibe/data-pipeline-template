@@ -78,10 +78,10 @@ with DAG(
     start_date=datetime(2024, 1, 1, tzinfo=UTC),
     catchup=False,
     max_active_runs=1,
-{% if warehouse == 'duckdb' %}
+{%- if warehouse == 'duckdb' %}
     # DuckDB allows one writer, so tasks run one at a time; Postgres renders keep parallelism.
     max_active_tasks=1,
-{% endif %}
+{%- endif %}
     default_args=DEFAULT_ARGS,
     tags=["weather", "dbt"],
 ) as dag:
