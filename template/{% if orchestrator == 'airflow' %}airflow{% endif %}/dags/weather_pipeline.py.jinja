@@ -1,0 +1,117 @@
+"""Airflow DAG that runs the weather pipeline end to end."""
+
+from __future__ import annotations
+
+import os
+import shutil
+import sys
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from typing import Any
+
+from cosmos import DbtTaskGroup, ExecutionConfig, ProfileConfig, ProjectConfig
+from cosmos.constants import InvocationMode
+
+try:  # Airflow 3 moved the public authoring classes into the task SDK.
+    from airflow.sdk import DAG
+except ImportError:  # pragma: no cover - Airflow 2 fallback
+    from airflow import DAG
+
+try:  # Core operators live in the standard provider in Airflow 3.
+    from airflow.providers.standard.operators.bash import BashOperator
+    from airflow.providers.standard.operators.python import PythonOperator
+except ImportError:  # pragma: no cover - Airflow 2 fallback
+    from airflow.operators.bash import BashOperator
+    from airflow.operators.python import PythonOperator
+
+from {{ package_name }}.config import CITIES, OFFLINE
+from {{ package_name }}.extract import extract_all
+from {{ package_name }}.load import load_all
+
+PIPELINE_HOME = Path(os.environ.get("PIPELINE_HOME", "/opt/airflow/project"))
+{% if warehouse == 'duckdb' %}
+# Cosmos runs dbt from a temporary clone of the project, so the profile needs an absolute path.
+os.environ.setdefault("DUCKDB_PATH", str(PIPELINE_HOME / "data" / "warehouse.duckdb"))
+{% endif %}
+DBT_PROJECT_DIR = PIPELINE_HOME / "dbt"
+DBT_PROFILES_PATH = DBT_PROJECT_DIR / "profiles.yml"
+
+DBT_EXECUTABLE = (
+    os.environ.get("DBT_EXECUTABLE")
+    or shutil.which("dbt")
+    or str(Path(sys.executable).with_name("dbt"))
+)
+
+DEFAULT_ARGS = {
+    "owner": "data-pipeline",
+    "retries": 2,
+    "retry_delay": timedelta(minutes=5),
+}
+
+
+def _is_backfill(context: dict[str, Any]) -> bool:
+    run_type = getattr(context["dag_run"], "run_type", "")
+    run_type = getattr(run_type, "value", run_type)
+    return str(run_type).lower() in {"backfill", "backfill_job"}
+
+
+def _extract(**context: Any) -> list[str]:
+    start = end = None
+    if _is_backfill(context):
+        start = context["data_interval_start"].date()
+        end = context["data_interval_end"].date()
+
+    result = extract_all(CITIES, start=start, end=end, offline=OFFLINE)
+    if result.failed:
+        raise RuntimeError(f"extract failed for: {', '.join(result.failed)}")
+    return [str(path) for path in result.written]
+
+
+def _load(**_: Any) -> int:
+    return load_all()
+
+
+with DAG(
+    dag_id="weather_pipeline",
+    description="Extract Open-Meteo weather, load it and build the dbt marts.",
+    schedule="@daily",
+    start_date=datetime(2024, 1, 1, tzinfo=UTC),
+    catchup=False,
+    default_args=DEFAULT_ARGS,
+    tags=["weather", "dbt"],
+) as dag:
+    extract_task = PythonOperator(
+        task_id="extract",
+        python_callable=_extract,
+    )
+
+    load_task = PythonOperator(
+        task_id="load",
+        python_callable=_load,
+    )
+
+    dbt_tasks = DbtTaskGroup(
+        group_id="dbt",
+        project_config=ProjectConfig(dbt_project_path=str(DBT_PROJECT_DIR)),
+        profile_config=ProfileConfig(
+            profile_name="{{ package_name }}",
+            target_name="dev",
+            profiles_yml_filepath=str(DBT_PROFILES_PATH),
+        ),
+        # Subprocess mode: each dbt call exits and releases the DuckDB file lock before the next task.
+        execution_config=ExecutionConfig(
+            dbt_executable_path=DBT_EXECUTABLE,
+            invocation_mode=InvocationMode.SUBPROCESS,
+        ),
+        operator_args={"install_deps": False},
+    )
+
+    source_freshness = BashOperator(
+        task_id="source_freshness",
+        bash_command=(
+            f'"{DBT_EXECUTABLE}" source freshness '
+            f'--project-dir "{DBT_PROJECT_DIR}" --profiles-dir "{DBT_PROJECT_DIR}"'
+        ),
+    )
+
+    extract_task >> load_task >> dbt_tasks >> source_freshness

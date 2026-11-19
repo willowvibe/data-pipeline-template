@@ -1,0 +1,45 @@
+"""Tests for the weather_pipeline Airflow DAG."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+DAGS_DIR = PROJECT_ROOT / "airflow" / "dags"
+
+
+@pytest.fixture()
+def dag_bag(monkeypatch):
+    monkeypatch.setenv("PIPELINE_HOME", str(PROJECT_ROOT))
+    monkeypatch.setenv("PIPELINE_OFFLINE", "1")
+
+    try:
+        from airflow.dag_processing.dagbag import DagBag
+    except ImportError:  # pragma: no cover - Airflow 2 fallback
+        from airflow.models.dagbag import DagBag
+
+    return DagBag(dag_folder=str(DAGS_DIR))
+
+
+def test_dag_imports_without_errors(dag_bag):
+    assert not dag_bag.import_errors, dag_bag.import_errors
+    assert "weather_pipeline" in dag_bag.dags
+
+
+def test_dag_structure(dag_bag):
+    dag = dag_bag.dags["weather_pipeline"]
+    task_ids = set(dag.task_ids)
+
+    assert "extract" in task_ids
+    assert "load" in task_ids
+    assert "source_freshness" in task_ids
+    assert any("stg_hourly_weather" in task_id for task_id in task_ids)
+    assert dag.catchup is False
+    assert dag.default_args["retries"] == 2
+    assert dag.default_args["retry_delay"].total_seconds() == 300
+
+    extract_task = dag.get_task("extract")
+    load_task = dag.get_task("load")
+    assert load_task in extract_task.downstream_list
