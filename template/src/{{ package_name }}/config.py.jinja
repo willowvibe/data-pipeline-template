@@ -1,0 +1,40 @@
+"""Configuration for the weather pipeline."""
+
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass
+from pathlib import Path
+
+FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
+ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
+
+HOURLY_VARS = [
+    "temperature_2m",
+    "relative_humidity_2m",
+    "precipitation",
+    "wind_speed_10m",
+]
+
+DATA_DIR = Path(os.environ.get("PIPELINE_DATA_DIR", "./data"))
+OFFLINE = os.environ.get("PIPELINE_OFFLINE") == "1"
+
+
+@dataclass(frozen=True)
+class City:
+    """A city to collect weather for."""
+
+    name: str
+    latitude: float
+    longitude: float
+
+
+CITIES = [
+{% for city in cities -%}
+    City(
+        name={{ city.name | tojson }},
+        latitude={{ city.latitude }},
+        longitude={{ city.longitude }},
+    ),
+{% endfor -%}
+]

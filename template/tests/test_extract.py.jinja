@@ -1,0 +1,109 @@
+"""Tests for Open-Meteo extraction. All tests are offline."""
+
+from __future__ import annotations
+
+import copy
+import json
+from datetime import datetime, timezone
+
+import httpx
+import pytest
+
+from {{ package_name }} import extract
+from {{ package_name }}.config import CITIES, HOURLY_VARS
+from {{ package_name }}.extract import (
+    PayloadError,
+    extract_all,
+    fetch_city,
+    validate_payload,
+    write_raw,
+)
+
+
+def test_validate_payload_accepts_fixture(sample_data):
+    for payload in sample_data.values():
+        validate_payload(payload)
+
+
+def test_validate_payload_rejects_missing_key(sample_data):
+    payload = copy.deepcopy(sample_data[CITIES[0].name])
+    del payload["hourly"]["precipitation"]
+
+    with pytest.raises(PayloadError, match="precipitation"):
+        validate_payload(payload)
+
+
+def test_validate_payload_rejects_uneven_arrays(sample_data):
+    payload = copy.deepcopy(sample_data[CITIES[0].name])
+    payload["hourly"]["wind_speed_10m"].pop()
+
+    with pytest.raises(PayloadError, match="different lengths"):
+        validate_payload(payload)
+
+
+def test_write_raw_splits_by_date(sample_data, tmp_path):
+    city = CITIES[0]
+    payload = sample_data[city.name]
+
+    paths = write_raw(city, payload, tmp_path)
+
+    assert len(paths) == 3
+    total_rows = 0
+    for path in paths:
+        assert path.parent == tmp_path / "raw" / city.name.lower().replace(" ", "-")
+        stored = json.loads(path.read_text(encoding="utf-8"))
+        assert path.stem == stored["hourly"]["time"][0][:10]
+        assert set(stored["hourly"]) == {"time", *HOURLY_VARS}
+        total_rows += len(stored["hourly"]["time"])
+    assert total_rows == len(payload["hourly"]["time"])
+
+
+def test_extract_all_keeps_going_when_one_city_fails(monkeypatch, sample_data, cities, tmp_path):
+    failing_city = cities[1]
+
+    def fake_fetch(city, *, start=None, end=None):
+        if city.name == failing_city.name:
+            raise RuntimeError("boom")
+        return sample_data[city.name]
+
+    monkeypatch.setattr(extract, "fetch_city", fake_fetch)
+    monkeypatch.setattr(extract, "DATA_DIR", tmp_path)
+
+    result = extract_all(cities, offline=False)
+
+    assert result.failed == [failing_city.name]
+    assert len(result.written) == 3 * (len(cities) - 1)
+    assert not (tmp_path / "raw" / failing_city.name.lower().replace(" ", "-")).exists()
+
+
+def test_extract_all_offline_shifts_timestamps_to_today(monkeypatch, cities, tmp_path):
+    monkeypatch.setattr(extract, "DATA_DIR", tmp_path)
+
+    result = extract_all(cities, offline=True)
+
+    assert result.failed == []
+    assert len(result.written) == 3 * len(cities)
+    last_day = max(path.stem for path in result.written)
+    assert last_day == datetime.now(timezone.utc).date().isoformat()
+
+
+def test_fetch_city_retries_on_503(monkeypatch, sample_data):
+    city = next(city for city in CITIES if city.name in sample_data)
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url)
+        if len(calls) < 3:
+            return httpx.Response(503, json={"reason": "unavailable"})
+        return httpx.Response(200, json=sample_data[city.name])
+
+    monkeypatch.setattr(
+        extract,
+        "_client",
+        lambda: httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    payload = fetch_city(city)
+
+    assert payload["hourly"] == sample_data[city.name]["hourly"]
+    assert len(calls) == 3
