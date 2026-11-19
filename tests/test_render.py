@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+import yaml
 
 COMBINATIONS = [
     ("duckdb", "none"),
@@ -47,8 +48,17 @@ def test_render_shape(copie, warehouse, orchestrator):
     assert (project / "README.md").is_file()
 
     for path in _text_files(project):
-        if "dbt" in path.relative_to(project).parts:
+        parts = path.relative_to(project).parts
+        if "dbt" in parts:
             continue  # dbt models, macros and profiles legitimately contain Jinja
         text = path.read_text(encoding="utf-8")
+        if ".github" in parts:
+            text = text.replace("${{", "")  # GitHub Actions expressions are not Jinja
         assert "{{" not in text, f"unrendered '{{{{' left in {path}"
         assert "{%" not in text, f"unrendered '{{%' left in {path}"
+
+    workflow_path = project / ".github" / "workflows" / "ci.yml"
+    assert workflow_path.is_file()
+    workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+    assert isinstance(workflow, dict)
+    assert "jobs" in workflow
