@@ -1,0 +1,28 @@
+version: 2
+
+sources:
+  - name: raw
+    description: Raw hourly weather loaded from Open-Meteo responses.
+    schema: raw
+    tables:
+      - name: hourly_weather
+        description: One row per city and observed hour.
+        loaded_at_field: loaded_at
+        freshness:
+          warn_after: { count: 6, period: hour }
+          error_after: { count: 24, period: hour }
+        columns:
+          - name: city
+            description: City name from the pipeline configuration.
+          - name: observed_at
+            description: UTC hour the observation applies to.
+          - name: temperature_c
+            description: Air temperature at 2 m in degrees Celsius.
+          - name: humidity_pct
+            description: Relative humidity at 2 m as a percentage.
+          - name: precipitation_mm
+            description: Precipitation during the hour in millimetres.
+          - name: wind_kmh
+            description: Wind speed at 10 m in kilometres per hour.
+          - name: loaded_at
+            description: UTC timestamp when the load step wrote the row.

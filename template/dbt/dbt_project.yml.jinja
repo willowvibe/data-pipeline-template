@@ -1,0 +1,26 @@
+name: "{{ package_name }}"
+version: "1.0.0"
+config-version: 2
+
+profile: "{{ package_name }}"
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+target-path: "target"
+log-path: "logs"
+clean-targets: ["target", "logs"]
+
+seeds:
+  "{{ package_name }}":
+    cities:
+      +column_types:
+        latitude: double precision
+        longitude: double precision
+
+models:
+  "{{ package_name }}":
+    staging:
+      +materialized: view
+    marts:
+      +materialized: table

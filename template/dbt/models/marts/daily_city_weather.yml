@@ -1,0 +1,38 @@
+version: 2
+
+models:
+  - name: daily_city_weather
+    description: One summary row per city per UTC observation date.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - city
+              - observation_date
+    columns:
+      - name: city
+        description: City name from the pipeline configuration.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('cities')
+                field: name
+      - name: observation_date
+        description: UTC date the hourly observations belong to.
+        data_tests:
+          - not_null
+      - name: min_temperature_c
+        description: Lowest hourly temperature of the day in degrees Celsius.
+      - name: max_temperature_c
+        description: Highest hourly temperature of the day in degrees Celsius.
+      - name: avg_temperature_c
+        description: Mean hourly temperature of the day in degrees Celsius.
+      - name: total_precipitation_mm
+        description: Sum of hourly precipitation for the day in millimetres.
+      - name: max_wind_kmh
+        description: Highest hourly wind speed of the day in kilometres per hour.
+      - name: hours_observed
+        description: Number of hourly observations available for the day.
+        data_tests:
+          - not_null

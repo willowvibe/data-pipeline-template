@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "{{ project_name }}"
+version = "0.1.0"
+description = "Weather data pipeline generated with data-pipeline-template."
+requires-python = ">={{ python_version }}"
+authors = [{ name = "{{ author_name }}" }]
+dependencies = [
+    "dbt-core~=1.12",
+{% if warehouse == 'duckdb' %}
+    "dbt-duckdb~=1.11",
+    "duckdb~=1.5",
+{% else %}
+    "dbt-postgres~=1.11",
+    "psycopg[binary]~=3.3",
+{% endif %}
+    "httpx~=0.28",
+    "tenacity~=9.2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest~=8.4"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"

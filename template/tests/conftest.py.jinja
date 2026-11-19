@@ -1,0 +1,24 @@
+"""Shared pytest fixtures for the weather pipeline."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+
+from {{ package_name }}.config import CITIES
+
+FIXTURE_PATH = Path(__file__).parent / "fixtures" / "open_meteo_sample.json"
+
+
+@pytest.fixture()
+def sample_data() -> dict:
+    """Return the recorded Open-Meteo responses keyed by city name."""
+    return json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
+
+
+@pytest.fixture()
+def cities() -> list:
+    """Return the cities configured for this project."""
+    return list(CITIES)

@@ -1,0 +1,58 @@
+_subdirectory: template
+_templates_suffix: .jinja
+_min_copier_version: "9.19"
+_answers_file: .copier-answers.yml
+
+project_name:
+  type: str
+  help: Name of the generated project (lowercase letters, digits and hyphens).
+  default: weather-pipeline
+  validator: "{% if not (project_name | regex_search('^[a-z0-9]+(-[a-z0-9]+)*$')) %}project_name must use lowercase letters, digits and hyphens only{% endif %}"
+
+package_name:
+  type: str
+  help: Python package and dbt project name.
+  default: "{{ project_name | replace('-', '_') }}"
+  when: false
+
+warehouse:
+  type: str
+  help: Warehouse used by the pipeline.
+  choices:
+    - duckdb
+    - postgres
+  default: duckdb
+
+orchestrator:
+  type: str
+  help: Orchestration layer for the pipeline.
+  choices:
+    - none
+    - airflow
+  default: none
+
+cities:
+  type: yaml
+  help: Cities to collect hourly weather for.
+  default: |
+    - name: Bengaluru
+      latitude: 12.97
+      longitude: 77.59
+    - name: London
+      latitude: 51.51
+      longitude: -0.13
+    - name: New York
+      latitude: 40.71
+      longitude: -74.01
+
+python_version:
+  type: str
+  help: Python version used by the generated project.
+  choices:
+    - "3.12"
+  default: "3.12"
+
+author_name:
+  type: str
+  help: Author name used in project metadata.
+  default: WillowVibe

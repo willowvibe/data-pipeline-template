@@ -1,0 +1,91 @@
+"""Tests for loading raw weather files into the warehouse."""
+
+from __future__ import annotations
+
+import json
+{% if warehouse == 'postgres' %}
+import os
+{% endif %}
+from pathlib import Path
+
+import pytest
+
+from {{ package_name }} import warehouse
+from {{ package_name }}.extract import write_raw
+from {{ package_name }}.load import load_all, load_file
+
+{% if warehouse == 'postgres' %}
+if not os.environ.get("WAREHOUSE_HOST"):
+    pytest.skip("Postgres warehouse tests need WAREHOUSE_HOST", allow_module_level=True)
+{% endif %}
+
+
+@pytest.fixture()
+def raw_dir(sample_data, cities, tmp_path, monkeypatch):
+    """Create a temporary raw tree for the first configured city."""
+{% if warehouse == 'duckdb' %}
+    monkeypatch.setattr(warehouse, "DUCKDB_PATH", tmp_path / "warehouse.duckdb")
+{% endif %}
+    data_dir = tmp_path / "data"
+    write_raw(cities[0], sample_data[cities[0].name], data_dir)
+    return data_dir
+
+
+def _raw_files(data_dir: Path) -> list[Path]:
+    return sorted((data_dir / "raw").glob("*/*.json"))
+
+
+def _count(conn) -> int:
+    row = conn.execute("SELECT COUNT(*) FROM raw.hourly_weather").fetchone()
+    return int(row[0])
+
+
+def test_loading_the_same_file_twice_is_idempotent(raw_dir):
+    target = _raw_files(raw_dir)[0]
+
+    with warehouse.connect() as conn:
+        first = load_file(conn, target)
+        count_after_first = _count(conn)
+        second = load_file(conn, target)
+        count_after_second = _count(conn)
+
+    assert first == second
+    assert first > 0
+    assert count_after_first == count_after_second == first
+
+
+def test_load_all_loads_every_raw_file(raw_dir):
+    total = load_all(raw_dir)
+
+    with warehouse.connect() as conn:
+        assert total > 0
+        assert _count(conn) == total
+
+
+def test_corrupt_file_raises_and_keeps_existing_rows(raw_dir):
+    target = _raw_files(raw_dir)[0]
+    corrupt = raw_dir / "raw" / "broken" / "2026-01-01.json"
+    corrupt.parent.mkdir(parents=True)
+    corrupt.write_text("{not json", encoding="utf-8")
+
+    with warehouse.connect() as conn:
+        loaded = load_file(conn, target)
+        with pytest.raises(json.JSONDecodeError):
+            load_file(conn, corrupt)
+        assert _count(conn) == loaded
+
+
+def test_failed_insert_rolls_back_the_delete(raw_dir):
+    target = _raw_files(raw_dir)[0]
+    payload = json.loads(target.read_text(encoding="utf-8"))
+
+    with warehouse.connect() as conn:
+        loaded = load_file(conn, target)
+
+    payload["hourly"]["temperature_2m"][-1] = "not-a-number"
+    target.write_text(json.dumps(payload), encoding="utf-8")
+
+    with warehouse.connect() as conn:
+        with pytest.raises(Exception):
+            load_file(conn, target)
+        assert _count(conn) == loaded

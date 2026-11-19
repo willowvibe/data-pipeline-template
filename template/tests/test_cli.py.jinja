@@ -1,0 +1,47 @@
+"""Tests for the command-line interface."""
+
+from __future__ import annotations
+
+import os
+
+import pytest
+
+from {{ package_name }} import cli, extract, load, warehouse
+
+
+@pytest.fixture()
+def isolated_data(tmp_path, monkeypatch):
+    """Point extraction, loading and DuckDB at a temporary data directory."""
+    data_dir = tmp_path / "data"
+    monkeypatch.setattr(extract, "DATA_DIR", data_dir)
+    monkeypatch.setattr(load, "DATA_DIR", data_dir)
+{% if warehouse == 'duckdb' %}
+    monkeypatch.setattr(warehouse, "DUCKDB_PATH", data_dir / "warehouse.duckdb")
+{% else %}
+    if not os.environ.get("WAREHOUSE_HOST"):
+        pytest.skip("Postgres CLI test needs WAREHOUSE_HOST")
+{% endif %}
+    return data_dir
+
+
+def test_run_offline_writes_raw_files_and_loads_rows(isolated_data):
+    exit_code = cli.main(["run", "--offline"])
+
+    assert exit_code == 0
+    assert list((isolated_data / "raw").glob("*/*.json"))
+
+    with warehouse.connect() as conn:
+        row = conn.execute("SELECT COUNT(*) FROM raw.hourly_weather").fetchone()
+
+    assert row[0] > 0
+
+
+def test_backfill_rejects_start_after_end(capsys):
+    with pytest.raises(SystemExit) as error:
+        cli.main(
+            ["backfill", "--start", "2026-01-05", "--end", "2026-01-01", "--offline"]
+        )
+
+    assert error.value.code != 0
+    message = capsys.readouterr().err.lower()
+    assert "start" in message and "end" in message
