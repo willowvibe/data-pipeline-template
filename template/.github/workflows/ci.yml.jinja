@@ -54,6 +54,58 @@ jobs:
         run: make ci
 
 {% if orchestrator == 'airflow' %}
-  # The Airflow DAG test job is added when the template's Airflow support is wired in.
+  airflow-dag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+{% if warehouse == 'postgres' %}
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: warehouse
+          POSTGRES_USER: warehouse
+          POSTGRES_PASSWORD: warehouse
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U warehouse -d warehouse"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      WAREHOUSE_HOST: localhost
+      WAREHOUSE_PORT: "5432"
+      WAREHOUSE_DB: warehouse
+      WAREHOUSE_USER: warehouse
+      WAREHOUSE_PASSWORD: warehouse
+{% endif %}
+    steps:
+      - uses: actions/checkout@v4
 
+      - name: Set up Python {{ python_version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: "{{ python_version }}"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          # Airflow is pinned directly instead of using its constraints file:
+          # the constraints pin duckdb/tenacity versions that conflict with dbt.
+          python -m pip install -e '.[dev,airflow]'
+
+      - name: Run the DAG offline
+        env:
+          PIPELINE_HOME: {% raw %}${{ github.workspace }}{% endraw %}
+          PIPELINE_OFFLINE: "1"
+          AIRFLOW_HOME: {% raw %}${{ runner.temp }}/airflow{% endraw %}
+          AIRFLOW__CORE__DAGS_FOLDER: {% raw %}${{ github.workspace }}/airflow/dags{% endraw %}
+          AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+          AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+        run: |
+          mkdir -p "$AIRFLOW_HOME"
+          airflow db migrate
+          airflow dags test weather_pipeline "$(date -u +%F)"
 {% endif %}
