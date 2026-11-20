@@ -12,6 +12,8 @@ three cities from [Open-Meteo](https://open-meteo.com/), keeps the raw JSON for 
 it into DuckDB or Postgres, and models it with dbt into daily summaries and city extremes.
 Everything is wired to run locally and in CI on day one.
 
+Built and maintained by [WillowVibe](https://www.willowvibe.com). Want this stack set up and running for your team? See our [data stack kickoff](https://www.willowvibe.com/services/data-pipelines).
+
 ## What you get
 
 - **Two warehouses** — DuckDB for a zero-infrastructure local start, or Postgres 16 in
@@ -218,3 +220,7 @@ data-pipeline-template/
 ## License
 
 MIT © WillowVibe. See [LICENSE](LICENSE).
+
+## About
+
+data-pipeline-template is an open-source project by [WillowVibe](https://www.willowvibe.com), a small data engineering and AI studio. Questions or project ideas: contact@willowvibe.com or [book a 30-minute call](https://cal.com/harishng/30min).
